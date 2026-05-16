@@ -18,7 +18,7 @@ export default function Footer() {
         </div>
 
         {/* Main Footer Grid */}
-        <div className="grid md:grid-cols-4 gap-8 mb-8">
+        <div className="grid md:grid-cols-5 gap-8 mb-8">
           {/* Company Info Section */}
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -73,6 +73,14 @@ transition-colors">Privacy Policy</Link></li>
 transition-colors">Terms of Service</Link></li>
               <li><Link href="/cookies" className="text-white/50 hover:text-gold text-sm 
 transition-colors">Cookie Policy</Link></li>
+            </ul>
+          </div>
+
+          {/* Get App */}
+          <div>
+            <h4 className="text-gold text-sm font-semibold mb-4 tracking-wider">GET APP</h4>
+            <ul className="space-y-2">
+              <li><Link href="/install" className="text-white/50 hover:text-gold text-sm transition-colors">Install App</Link></li>
             </ul>
           </div>
 
