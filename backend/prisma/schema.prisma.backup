@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String
+  role                 String    @default("fan")
+  isVerified           Boolean   @default(false)
+  verificationStatus   String    @default("pending")
+  isBanned             Boolean   @default(false)
+  isSuspended          Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  
+  artistName           String?
+  bio                  String?
+  category             String?
+  profilePicUrl        String?
+  coverPhotoUrl        String?
+  coverVideoUrl        String?
+  tagline              String?
+  socialLinks          Json?
+  signedToZLS          Boolean   @default(false)
+  templateId           String    @default("classic")
+  galleryPhotos        Json?
+  idPhotoUrl           String?
+  selfiePhotoUrl       String?
+  walletBalance        Float     @default(0)
+  subscriptionBasic    Float     @default(50)
+  subscriptionPremium  Float     @default(99)
+  subscriptionGold     Float     @default(199)
+  
+  posts                Post[]
+  adminActions         AuditLog[]
+  verificationMessages VerificationMessage[]
+  distributionSettings DistributionSettings?
+}
+
+model Post {
+  id              String    @id @default(uuid())
+  creatorId       String
+  creator         User      @relation(fields: [creatorId], references: [id])
+  type            String
+  title           String
+  description     String?
+  mediaUrl        String?
+  thumbnailUrl    String?
+  price           Float     @default(0)
+  isFree          Boolean   @default(true)
+  autoScanStatus  String    @default("pending")
+  autoScanReason  String?
+  adminStatus     String    @default("pending")
+  adminRejectReason String?
+  isGlobalFeed    Boolean   @default(false)
+  distributionSelections Json?
+  createdAt       DateTime  @default(now())
+  approvedAt      DateTime?
+  
+  interactions    PostInteraction[]
+}
+
+model PostInteraction {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  type      String
+  content   String?
+  createdAt DateTime @default(now())
+  
+  post      Post     @relation(fields: [postId], references: [id])
+}
+
+model Follow {
+  followerId String
+  followingId String
+  createdAt  DateTime @default(now())
+  
+  @@id([followerId, followingId])
+}
+
+model Subscription {
+  id                    String   @id @default(uuid())
+  fanId                 String
+  creatorId             String
+  tier                  String
+  price                 Float
+  payfastSubscriptionId String?
+  status                String   @default("active")
+  startDate             DateTime @default(now())
+  endDate               DateTime?
+}
+
+model DistributionSettings {
+  id                  String  @id @default(uuid())
+  creatorId           String  @unique
+  creator             User    @relation(fields: [creatorId], references: [id])
+  distrokidEnabled    Boolean @default(false)
+  youtubeEnabled      Boolean @default(false)
+  spotifyEnabled      Boolean @default(false)
+  appleMusicEnabled   Boolean @default(false)
+  tidalEnabled        Boolean @default(false)
+  updatedAt           DateTime @updatedAt
+}
+
+model DistributionQueue {
+  id          String   @id @default(uuid())
+  postId      String
+  creatorId   String
+  channels    Json
+  status      String   @default("pending")
+  errorMessage String?
+  createdAt   DateTime @default(now())
+  pushedAt    DateTime?
+}
+
+model VerificationMessage {
+  id          String   @id @default(uuid())
+  creatorId   String
+  adminId     String?
+  message     String
+  fileUrl     String?
+  isFromAdmin Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+  
+  creator     User     @relation(fields: [creatorId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}
+
+model SystemHealth {
+  id          String   @id @default(uuid())
+  component   String
+  status      String
+  message     String?
+  details     Json?
+  detectedAt  DateTime @default(now())
+}
+
+model MaintenanceSettings {
+  id          Int      @id @default(1)
+  isEnabled   Boolean  @default(false)
+  message     String?
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+}
+
+model ContentScanRule {
+  id          Int      @id @default(autoincrement())
+  type        String
+  value       String
+  severity    String
+  createdAt   DateTime @default(now())
+}
+model AuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  admin      User     @relation(fields: [adminId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}

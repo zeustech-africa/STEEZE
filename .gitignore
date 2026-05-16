@@ -1,0 +1,59 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+
+# Build
+build/
+dist/
+
+# Environment files - DO NOT COMMIT SECRETS
+.env
+.env.local
+.env.*.local
+*.env
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Vercel
+.vercel
+
+# Uploads (may contain user content)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs
+logs/
+backend/logs/
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Certificates
+*.pem
+*.key
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Prisma migrations (committed via prisma/migrations already)
+# backend/prisma/migrations/ is tracked

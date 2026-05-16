@@ -1,0 +1,297 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0A0A0A;
+  --foreground: #FFFFFF;
+  --gold: #FFD700;
+  --gold-dark: #FFA500;
+  --neon-blue: #00A3FF;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-gold: var(--gold);
+  --color-gold-dark: var(--gold-dark);
+  --color-neon-blue: var(--neon-blue);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Utility */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--gold);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Custom Animations */
+@keyframes slowZoom {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes shine {
+  0% { background-position: -100% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-slow-zoom {
+  animation: slowZoom 20s ease-in-out infinite alternate;
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.8s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.shine-effect {
+  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.3), transparent);
+  background-size: 200% 100%;
+  animation: shine 2s infinite;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1A1A1A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gold);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-dark);
+}
+
+/* Scroll indicator */
+.scroll-indicator {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: float 2s ease-in-out infinite;
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* ============================================ */
+/* WCAG Accessibility – Focus Indicators        */
+/* ============================================ */
+*:focus-visible {
+  outline: 2px solid #FFD700;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip to content focus */
+#main-content:focus {
+  outline: none;
+}
+
+/* Keyboard navigation improvements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #FFD700;
+  outline-offset: 2px;
+}
+
+/* High contrast focus for interactive elements */
+.card:focus-visible,
+.post-card:focus-visible {
+  outline: 2px solid #FFD700;
+  outline-offset: 4px;
+}
+
+/* Ensure all interactive elements have pointer cursor */
+button, a, [role="button"] {
+  cursor: pointer;
+}
+
+/* ============================================ */
+/* WCAG Accessibility – Color Contrast           */
+/* ============================================ */
+
+/* Ensure text contrast meets WCAG Level A (4.5:1 for normal text) */
+
+/* text-white/70: contrast ratio ~10.4:1 against #0A0A0A background – exceeds WCAG AAA */
+/* text-white/50: contrast ratio ~5.7:1 against #0A0A0A background – meets WCAG AA */
+/* text-white/30: contrast ratio ~3.6:1 – only for decorative/disabled text */
+
+/* Gold (#FFD700) text contrast ratio against #0A0A0A: ~12.4:1 – exceeds WCAG AAA */
+.text-gold {
+  color: #FFD700;
+}
+
+/* Links must be distinguishable */
+a:not(.no-underline) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Screen-reader-only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ================================
+   MOBILE PWA OPTIMIZATIONS
+   ================================ */
+
+@media (max-width: 768px) {
+  /* Reduce animations on mobile for battery/performance */
+  * {
+    animation-duration: 0.3s !important;
+    transition-duration: 0.2s !important;
+  }
+
+  /* Optimize glass-morphism for mobile GPU */
+  .glass-card {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 16px;
+  }
+
+  /* Reduce padding on mobile */
+  .container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* Touch-friendly tap targets (WCAG 2.5.5) */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Reduce hero height on mobile */
+  .hero-section {
+    min-height: 70vh;
+  }
+
+  /* Native smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Prevent text size adjustment on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Highlight tap targets on mobile */
+  a:active,
+  button:active {
+    opacity: 0.8;
+  }
+
+  /* Disable hover effects that break on touch */
+  @media (hover: none) {
+    a:hover,
+    button:hover {
+      /* preserve existing styles, no hover changes */
+    }
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* PWA standalone mode adjustments */
+@media (display-mode: standalone) {
+  /* Add safe area padding for notched devices */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Pull-to-refresh indicator color */
+  :root {
+    --pull-to-refresh-color: #ffd700;
+  }
+}
+
+/* PWA app-like fullscreen adjustments */
+@media (display-mode: fullscreen) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

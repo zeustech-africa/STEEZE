@@ -1,0 +1,921 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  url      = env("DATABASE_URL")
+  provider = "postgresql"
+}
+
+model User {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  passwordHash         String
+  role                 String    @default("fan")
+  isVerified           Boolean   @default(false)
+  verificationStatus   String    @default("pending")
+  isBanned             Boolean   @default(false)
+  isSuspended          Boolean   @default(false)
+  isPrivate            Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // User type (determines everything)
+  userType             String    @default("vibe") // zls_artist, independent_creator, vibe
+
+  // ZLS Artist specific (only for userType = "zls_artist")
+  contract             Contract?
+  contractStatus       String?
+  zlsBadgeEnabled      Boolean   @default(false)
+  zlsWatermarkEnabled  Boolean   @default(false)
+  zlsProfileBanner     String?   // URL to special ZLS banner
+  zlsVerifiedAt        DateTime?
+  autoDistribution     Boolean   @default(false) // Auto-push to all channels for ZLS artists
+
+  // Independent Creator specific (only for userType = "independent_creator")
+  creatorSubscription   CreatorSubscription?
+  subscriptionStatus    String   @default("inactive") // active, expired, cancelled
+
+  // Revenue split
+  revenueSplit         Float    @default(50) // 50 for ZLS, 70 for independent
+  platformSplit        Float    @default(50) // 50 for ZLS, 30 for independent
+  
+  artistName           String?
+  bio                  String?
+  category             String?
+  profilePicUrl        String?
+  coverPhotoUrl        String?
+  coverVideoUrl        String?
+  tagline              String?
+  socialLinks          Json?
+  signedToZLS          Boolean   @default(false)
+  templateId           String    @default("classic")
+  galleryPhotos        Json?
+  idPhotoUrl           String?
+  selfiePhotoUrl       String?
+  subscriptionTier     String    @default("free")
+  walletBalance        Float     @default(0)
+  subscriptionBasic    Float     @default(50)
+  subscriptionPremium  Float     @default(99)
+  subscriptionGold     Float     @default(199)
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorSecret      String?
+  backupCodes          String?
+  encryptedIdNumber    String?
+  encryptedAddress     String?
+  encryptedPhone       String?
+  deletionScheduledAt  DateTime?
+  deletionStatus       String?
+
+  // Age Verification & Parental Controls
+  birthDate                DateTime?
+  isUnder13                Boolean   @default(false)
+  ageVerifiedAt            DateTime?
+  emailVerified            Boolean   @default(false)
+  resetToken               String?
+  resetTokenExpires        DateTime?
+  parentalControlEnabled   Boolean   @default(false)
+  parentId                 String?
+  childIds                 String[]  @default([])
+  contentFilterLevel       String    @default("none") // none, moderate, strict
+
+  // Demographics fields for analytics
+  country                 String?
+  userAgent               String?
+  
+  posts                Post[]
+  adminActions         AuditLog[]
+  verificationMessages VerificationMessage[]
+  distributionSettings DistributionSettings?
+  receivedNotifications Notification[] @relation("notificationRecipient")
+  sentNotifications     Notification[] @relation("notificationSender")
+  blockedUsers         BlockedUser[] @relation("blocker")
+  blockedByUsers       BlockedUser[] @relation("blocked")
+  reports              Report[]     @relation("reporter")
+  reportedIn           Report[]     @relation("reported")
+  reposts              Repost[]
+  repostLikes          RepostLike[]
+  repostComments       RepostComment[]
+  mutedUsers           MutedUser[]     @relation("muter")
+  mutedByUsers         MutedUser[]     @relation("muted")
+  followerRequestsSent FollowerRequest[] @relation("fromUserRel")
+  followerRequestsRecv FollowerRequest[] @relation("toUserRel")
+  playlists            Playlist[]
+  recentlyPlayed       RecentlyPlayed[]
+  payments             Payment[]       @relation("payer")
+  paymentsReceived     Payment[]       @relation("payee")
+  vibesSubscriptions   Subscription[]  @relation("subscriber")
+  creatorSubscriptions Subscription[]  @relation("subscribedTo")
+  sessions             Session[]
+  loginHistories       LoginHistory[]
+  contentReports       ContentReport[]
+  adminUser            AdminUser?
+  violations           Violation[]
+  appeals              Appeal[]
+  shadowBan            ShadowBan?
+  payouts              Payout[]
+  dataExportRequests   DataExportRequest[]
+  parentalConsentsAsChild  ParentalConsent[]  @relation("ParentalConsentChild")
+  parentalConsentsAsParent ParentalConsent[]  @relation("ParentalConsentParent")
+  consentRecords       ConsentRecord[]
+  emailVerifications   EmailVerification[]
+  optOutRecords        OptOutRecord[]
+  emailLogs            EmailLog[]
+  followers            Follow[]         @relation("FollowFollower")
+  following            Follow[]         @relation("FollowFollowing")
+  creatorAnalytics     CreatorAnalytics[]
+}
+
+model Post {
+  id              String    @id @default(uuid())
+  creatorId       String
+  creator         User      @relation(fields: [creatorId], references: [id])
+  type            String
+  title           String
+  description     String?
+  caption         String?
+  content         String?
+  category        String?
+  mediaUrl        String?
+  thumbnailUrl    String?
+  coverArtUrl     String?
+  price           Float     @default(0)
+  isFree          Boolean   @default(true)
+  isPinned        Boolean   @default(false)
+  status          String    @default("published")
+  scheduledFor    DateTime?
+  lyrics          String?
+  albumId         String?
+  albumName       String?
+  autoScanStatus  String    @default("pending")
+  autoScanReason  String?
+  adminStatus     String    @default("pending")
+  adminRejectReason String?
+  isAgeRestricted  Boolean   @default(false) // 18+ content
+  isGlobalFeed    Boolean   @default(false)
+  distributionSelections Json?
+  createdAt       DateTime  @default(now())
+  approvedAt      DateTime?
+  updatedAt       DateTime  @updatedAt
+  earnings        Float     @default(0)
+  viewsCount      Int       @default(0)
+  downloadsCount  Int       @default(0)
+  sharesCount     Int       @default(0)
+  
+  interactions    PostInteraction[]
+  comments        Comment[]
+  postAnalytics   PostAnalytics[]
+  notifications   Notification[]
+  reposts              Repost[]
+  playlistEntries      PlaylistSong[]
+  playedBy             RecentlyPlayed[]
+  contentLock          ContentLock?
+  distributionJobs     DistributionJob[]
+  contentAnalytics     ContentAnalytics?
+}
+
+model PostInteraction {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  type      String
+  content   String?
+  createdAt DateTime @default(now())
+  
+  post      Post     @relation(fields: [postId], references: [id])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  text      String
+  parentId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post      Post       @relation(fields: [postId], references: [id])
+  parent    Comment?   @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[]  @relation("CommentReplies")
+  likes     CommentLike[]
+}
+
+model CommentLike {
+  id        String   @id @default(uuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment   Comment  @relation(fields: [commentId], references: [id])
+
+  @@unique([commentId, userId])
+}
+
+model Follow {
+  followerId  String
+  follower    User     @relation("FollowFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("FollowFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  
+  @@id([followerId, followingId])
+}
+
+model Subscription {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation("subscriber", fields: [userId], references: [id], onDelete: Cascade)
+  creatorId       String
+  creator         User     @relation("subscribedTo", fields: [creatorId], references: [id], onDelete: Cascade)
+  tier            String
+  price           Float
+  status          String   @default("active")
+  startDate       DateTime @default(now())
+  endDate         DateTime?
+  payfastId       String?
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  message   String?
+  fromUserId String?
+  postId    String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation("notificationRecipient", fields: [userId], references: [id])
+  fromUser  User?    @relation("notificationSender", fields: [fromUserId], references: [id])
+  post      Post?    @relation(fields: [postId], references: [id])
+}
+
+model BlockedUser {
+  id          String   @id @default(uuid())
+  blockerId   String
+  blockedId   String
+  createdAt   DateTime @default(now())
+
+  blocker     User     @relation("blocker", fields: [blockerId], references: [id])
+  blocked     User     @relation("blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+model Report {
+  id          String    @id @default(uuid())
+  reporterId  String
+  reportedId  String
+  targetType  String    @default("user")
+  targetId    String?
+  reason      String
+  description String?
+  status      String    @default("pending")
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  createdAt   DateTime  @default(now())
+
+  reporter    User      @relation("reporter", fields: [reporterId], references: [id])
+  reported    User      @relation("reported", fields: [reportedId], references: [id])
+}
+
+model Withdrawal {
+  id          String   @id @default(uuid())
+  creatorId   String
+  amount      Float
+  status      String   @default("pending")
+  method      String?
+  accountDetails String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PostAnalytics {
+  id        String   @id @default(uuid())
+  postId    String
+  views     Int      @default(0)
+  likes     Int      @default(0)
+  comments  Int      @default(0)
+  downloads Int      @default(0)
+  shares    Int      @default(0)
+  revenue   Float    @default(0)
+  recordedAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@unique([postId, recordedAt])
+}
+
+model DistributionSettings {
+  id                String  @id @default(uuid())
+  creatorId         String  @unique
+  creator           User    @relation(fields: [creatorId], references: [id])
+  distrokidEnabled  Boolean @default(false)
+  youtubeEnabled    Boolean @default(false)
+  spotifyEnabled    Boolean @default(false)
+  appleMusicEnabled Boolean @default(false)
+  tidalEnabled      Boolean @default(false)
+  updatedAt         DateTime @updatedAt
+}
+
+model DistributionQueue {
+  id           String   @id @default(uuid())
+  postId       String
+  creatorId    String
+  channels     Json
+  status       String   @default("pending")
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  pushedAt     DateTime?
+}
+
+model VerificationMessage {
+  id          String   @id @default(uuid())
+  creatorId   String
+  adminId     String?
+  message     String
+  fileUrl     String?
+  isFromAdmin Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+  
+  creator     User     @relation(fields: [creatorId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  admin      User     @relation(fields: [adminId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}
+
+model SystemHealth {
+  id         String   @id @default(uuid())
+  component  String
+  status     String
+  message    String?
+  details    Json?
+  detectedAt DateTime @default(now())
+}
+
+model MaintenanceSettings {
+  id        Int      @id @default(1)
+  isEnabled Boolean  @default(false)
+  message   String?
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+model ContentScanRule {
+  id        Int      @id @default(autoincrement())
+  type      String
+  value     String
+  severity  String
+  createdAt DateTime @default(now())
+}
+
+model Repost {
+  id              String    @id @default(uuid())
+  originalPostId  String
+  originalPost    Post      @relation(fields: [originalPostId], references: [id], onDelete: Cascade)
+  repostedBy      String
+  repostedByUser  User      @relation(fields: [repostedBy], references: [id], onDelete: Cascade)
+  repostComment   String?
+  createdAt       DateTime  @default(now())
+  
+  likes           RepostLike[]
+  comments        RepostComment[]
+  
+  @@unique([originalPostId, repostedBy])
+}
+
+model RepostLike {
+  id          String   @id @default(uuid())
+  repostId    String
+  repost      Repost   @relation(fields: [repostId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  
+  @@unique([repostId, userId])
+}
+
+model RepostComment {
+  id          String   @id @default(uuid())
+  repostId    String
+  repost      Repost   @relation(fields: [repostId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment     String
+  likes       Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model MutedUser {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation("muter", fields: [userId], references: [id], onDelete: Cascade)
+  mutedUserId   String
+  mutedUser     User     @relation("muted", fields: [mutedUserId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  
+  @@unique([userId, mutedUserId])
+}
+
+model FollowerRequest {
+  id          String   @id @default(uuid())
+  fromUserId  String
+  fromUser    User     @relation("fromUserRel", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId    String
+  toUser      User     @relation("toUserRel", fields: [toUserId], references: [id], onDelete: Cascade)
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  
+  @@unique([fromUserId, toUserId])
+}
+
+model Playlist {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  coverImage  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  songs       PlaylistSong[]
+}
+
+model PlaylistSong {
+  id          String   @id @default(uuid())
+  playlistId  String
+  playlist    Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  
+  @@unique([playlistId, postId])
+}
+
+model RecentlyPlayed {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  playedAt    DateTime @default(now())
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation("payer", fields: [userId], references: [id], onDelete: Cascade)
+  creatorId       String
+  creator         User     @relation("payee", fields: [creatorId], references: [id], onDelete: Cascade)
+  amount          Float
+  tier            String
+  payfastId       String?
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String
+  expiresAt DateTime
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SecurityEvent {
+  id        String   @id @default(uuid())
+  type      String
+  ip        String
+  userAgent String?
+  details   Json?
+  severity  String
+  createdAt DateTime @default(now())
+}
+
+model SecurityAlert {
+  id         String   @id @default(uuid())
+  type       String
+  message    String
+  details    String?
+  severity   String
+  status     String   @default("new")
+  createdAt  DateTime @default(now())
+  resolvedAt DateTime?
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String
+  userAgent String?
+  country   String?
+  timestamp DateTime @default(now())
+}
+
+model ContentReport {
+  id          String   @id @default(uuid())
+  reporterId  String
+  reporter    User     @relation(fields: [reporterId], references: [id])
+  targetType  String
+  targetId    String
+  reason      String
+  details     String?
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?
+}
+
+model Contract {
+  id              String   @id @default(uuid())
+  creatorId       String   @unique
+  creator         User     @relation(fields: [creatorId], references: [id])
+  status          String   @default("pending") // pending, signed, approved, rejected, terminated
+  agreementText   String   // The full agreement text
+  agreedText      String?  // "I AGREE" typed by user
+  eSignature      String?  // typed name as signature
+  signedAt        DateTime?
+  ipAddress       String?
+  approvedBy      String?  // admin ID
+  approvedAt      DateTime?
+  rejectedReason  String?
+  terminatedAt    DateTime?
+  terminatedReason String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CreatorSubscription {
+  id              String   @id @default(uuid())
+  creatorId       String   @unique
+  creator         User     @relation(fields: [creatorId], references: [id])
+  tier            String   @default("basic") // basic, premium, gold
+  status          String   @default("pending") // pending, active, expired, cancelled
+  payfastId       String?
+  startDate       DateTime @default(now())
+  endDate         DateTime?
+  autoRenew       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AdminUser {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  role       String   @default("admin") // super_admin, admin, content_moderator, financial_manager, financial_analyst, support_agent, viewer, api_key_manager
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AnomalyScore {
+  id         String   @id @default(uuid())
+  targetType String   // user, post
+  targetId   String
+  score      Int      // 0-100
+  reasons    Json?
+  createdAt  DateTime @default(now())
+}
+
+model ModerationRule {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  condition   Json
+  action      String   // temp_mute, shadow_ban, flag_for_review, block
+  duration    Int?
+  isActive    Boolean  @default(true)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Violation {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  type           String    // spam, harassment, inappropriate, violence, politics, other
+  severity       String    // low, medium, high
+  postId         String?
+  commentId      String?
+  action         String    // warning, temp_mute, shadow_ban, ban
+  actionTakenBy  String
+  actionExpiresAt DateTime?
+  note           String?
+  createdAt      DateTime  @default(now())
+}
+
+model Appeal {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  targetType String    // post, comment, account
+  targetId   String
+  reason     String
+  status     String    @default("pending") // pending, approved, rejected
+  reviewedBy String?
+  reviewedAt DateTime?
+  adminNote  String?
+  createdAt  DateTime  @default(now())
+}
+
+model ShadowBan {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id])
+  reason    String
+  expiresAt DateTime?
+  createdBy String
+  createdAt DateTime  @default(now())
+}
+
+model ContentLock {
+  id       String   @id @default(uuid())
+  postId   String   @unique
+  post     Post     @relation(fields: [postId], references: [id])
+  lockedBy String
+  lockedAt DateTime @default(now())
+  reason   String
+}
+
+model ModerationNote {
+  id         String   @id @default(uuid())
+  targetType String   // user, post, comment
+  targetId   String
+  note       String
+  createdBy  String
+  createdAt  DateTime @default(now())
+}
+
+model Payout {
+  id          String    @id @default(uuid())
+  creatorId   String
+  creator     User      @relation(fields: [creatorId], references: [id])
+  amount      Float
+  status      String    @default("pending") // pending, processing, completed, failed
+  payfastId   String?
+  processedBy String?
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model IpRule {
+  id        String    @id @default(uuid())
+  ipAddress String    @unique
+  type      String    // blacklist, whitelist
+  reason    String?
+  createdBy String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+}
+
+model SystemBackup {
+  id          String    @id @default(uuid())
+  type        String    // database, files, full
+  status      String    @default("pending") // pending, running, completed, failed
+  size        Int?
+  location    String?
+  startedAt   DateTime
+  completedAt DateTime?
+  createdBy   String
+}
+
+model DataExportRequest {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  status      String    @default("pending") // pending, processing, completed, failed
+  dataTypes   Json      @default("[]")
+  fileUrl     String?
+  fileSize    Int?
+  expiresAt   DateTime?
+  requestedAt DateTime  @default(now())
+  completedAt DateTime?
+  downloadedAt DateTime?
+}
+
+model DistributionCredential {
+  id         String    @id @default(uuid())
+  channel    String    // distrokid, youtube, spotify, apple_music, tidal
+  apiKey     String
+  apiSecret  String?
+  status     String    @default("active")
+  lastTested DateTime?
+  lastError  String?
+  expiresAt  DateTime?
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model DistributionJob {
+  id           String    @id @default(uuid())
+  postId       String
+  post         Post      @relation(fields: [postId], references: [id])
+  channel      String
+  status       String    @default("pending") // pending, processing, completed, failed, retry
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(3)
+  errorMessage String?
+  priority     Int       @default(0)
+  scheduledAt  DateTime?
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+model WebhookEndpoint {
+  id              String    @id @default(uuid())
+  channel         String    @unique
+  url             String
+  secret          String
+  events          Json
+  isActive        Boolean   @default(true)
+  lastTriggeredAt DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Broadcast {
+  id            String    @id @default(uuid())
+  title         String
+  message       String
+  recipientType String    // all, creators, vibes, zls_artists, independent_creators
+  scheduledFor  DateTime?
+  sentAt        DateTime?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+}
+
+model SystemSettings {
+  id                 Int      @id @default(1)
+  maintenanceMode    Boolean  @default(false)
+  maintenanceMessage String?
+  updatedBy          String?
+  updatedAt          DateTime @default(now())
+}
+
+// Age Verification & Parental Controls
+model ParentalConsent {
+  id              String    @id @default(uuid())
+  childId         String    @unique
+  child           User      @relation("ParentalConsentChild", fields: [childId], references: [id])
+  parentId        String
+  parent          User      @relation("ParentalConsentParent", fields: [parentId], references: [id])
+  consentCode     String?
+  consentGivenAt  DateTime  @default(now())
+  consentMethod   String    @default("email") // email, id_scan, credit_card
+  expiresAt       DateTime
+  status          String    @default("active") // pending, active, revoked, expired
+  revokedAt       DateTime?
+  revokedReason   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Consent records for GDPR/POPIA compliance
+model ConsentRecord {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  consentType   String    // email_marketing, sms_marketing, push_notifications, analytics
+  status        String    // granted, withdrawn
+  grantedAt     DateTime?
+  withdrawnAt   DateTime?
+  ipAddress     String?
+  userAgent     String?
+  source        String?   // signup, settings, checkout
+  createdAt     DateTime  @default(now())
+}
+
+// Double opt-in email verification
+model EmailVerification {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  email         String
+  code          String
+  expiresAt     DateTime
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+// Opt-out records for CAN-SPAM/POPIA compliance
+model OptOutRecord {
+  id            String    @id @default(uuid())
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  email         String
+  consentType   String    // email_marketing, sms_marketing, push_notifications, all
+  token         String    @unique
+  status        String    @default("active") // active, opted_out
+  optedOutAt    DateTime  @default(now())
+  source        String?   // email_link, settings_page, api
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+}
+
+// Email tracking for analytics
+model EmailLog {
+  id              String    @id @default(uuid())
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+  email           String
+  type            String    // welcome, marketing, notification, verification
+  subject         String
+  status          String    // sent, delivered, opened, clicked, bounced
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  unsubscribedAt  DateTime?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+}
+
+// CDN Health Monitoring
+model CDNHealthLog {
+  id               String    @id @default(uuid())
+  primaryHealthy   Boolean
+  secondaryHealthy Boolean
+  tertiaryHealthy  Boolean?
+  activeCDN        String
+  timestamp        DateTime  @default(now())
+}
+
+// ========================
+// ANALYTICS MODELS
+// ========================
+
+// Platform-wide daily analytics aggregation
+model DailyAnalytics {
+  id              String   @id @default(uuid())
+  date            DateTime @unique
+  totalUsers      Int      @default(0)
+  totalCreators   Int      @default(0)
+  totalVibes      Int      @default(0)
+  totalPosts      Int      @default(0)
+  totalViews      Int      @default(0)
+  totalLikes      Int      @default(0)
+  totalComments   Int      @default(0)
+  totalReposts    Int      @default(0)
+  totalSaves      Int      @default(0)
+  totalRevenue    Float    @default(0)
+  platformRevenue Float    @default(0)
+  creatorPayouts  Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Per-creator daily analytics
+model CreatorAnalytics {
+  id            String   @id @default(uuid())
+  creatorId     String
+  creator       User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  date          DateTime
+  views         Int      @default(0)
+  likes         Int      @default(0)
+  comments      Int      @default(0)
+  reposts       Int      @default(0)
+  saves         Int      @default(0)
+  followersGain Int      @default(0)
+  revenue       Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([creatorId, date])
+}
+
+// Per-content analytics
+model ContentAnalytics {
+  id             String   @id @default(uuid())
+  postId         String
+  post           Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  views          Int      @default(0)
+  likes          Int      @default(0)
+  comments       Int      @default(0)
+  reposts        Int      @default(0)
+  saves          Int      @default(0)
+  avgWatchTime   Float?   // seconds (for videos)
+  completionRate Float?   // 0-100
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([postId])
+}
