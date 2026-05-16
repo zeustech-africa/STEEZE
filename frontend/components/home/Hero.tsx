@@ -1,9 +1,47 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronDown, Shield, Users, Sparkles } from "lucide-react";
+import { ChevronDown, Shield, Users, Sparkles, Download } from "lucide-react";
 
 const Hero = () => {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const userAgent = navigator.userAgent;
+    const mobile = /Android|iPhone|iPad|iPod/i.test(userAgent);
+    setIsMobile(mobile);
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallButton(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((result: { outcome: string }) => {
+        if (result.outcome === "accepted") {
+          console.log("User accepted install");
+        }
+        setDeferredPrompt(null);
+        setShowInstallButton(false);
+      });
+    } else {
+      window.location.href = "/install";
+    }
+  };
+
   const scrollToNext = () => {
     document
       .getElementById("trending")
@@ -74,6 +112,16 @@ const Hero = () => {
           >
             Join as VIBES
           </Link>
+
+          {/* Install App Button - shown on mobile devices */}
+          {isMobile && (
+            <button
+              onClick={handleInstallClick}
+              className="px-8 py-4 bg-white/10 border border-gold text-gold font-semibold rounded-full text-lg hover:bg-gold hover:text-black transition-all duration-300 flex items-center justify-center gap-2"
+            >
+              <Download size={18} /> Install App
+            </button>
+          )}
         </div>
 
         <div className="scroll-indicator" onClick={scrollToNext}>

@@ -1,9 +1,47 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Shield, Users, Sparkles, Crown } from "lucide-react";
+import { Shield, Users, Sparkles, Crown, Download } from "lucide-react";
 
 export default function MobileHero() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const userAgent = navigator.userAgent;
+    const mobile = /Android|iPhone|iPad|iPod/i.test(userAgent);
+    setIsMobile(mobile);
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallButton(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((result: { outcome: string }) => {
+        if (result.outcome === "accepted") {
+          console.log("User accepted install");
+        }
+        setDeferredPrompt(null);
+        setShowInstallButton(false);
+      });
+    } else {
+      window.location.href = "/install";
+    }
+  };
+
   return (
     <section className="relative min-h-[80vh] flex items-center justify-center overflow-hidden bg-gradient-to-b from-black via-black to-gold/5">
       {/* No video on mobile – just gradient */}
@@ -52,6 +90,16 @@ export default function MobileHero() {
           >
             Join as VIBES
           </Link>
+
+          {/* Install App Button - shown on mobile devices */}
+          {isMobile && (
+            <button
+              onClick={handleInstallClick}
+              className="px-6 py-2.5 bg-white/10 border border-gold text-gold font-semibold rounded-full text-sm hover:bg-gold hover:text-black transition-all flex items-center justify-center gap-2"
+            >
+              <Download size={14} /> Install App
+            </button>
+          )}
         </div>
       </div>
     </section>
