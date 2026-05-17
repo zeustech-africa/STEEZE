@@ -42,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const userStr = localStorage.getItem("user");
 
     if (!token || !userStr) {
-      router.push("/login");
+      router.push("/admin/login");
       return;
     }
 
@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
       setAuthorized(true);
     } catch {
-      router.push("/login");
+      router.push("/admin/login");
       return;
     }
 
