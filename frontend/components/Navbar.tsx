@@ -122,6 +122,12 @@ const Navbar = () => {
               </>
             ) : (
               <>
+                <Link
+                  href="/install"
+                  className="px-3 py-1 border border-gold/50 text-gold rounded-full text-sm hover:bg-gold hover:text-black transition-all"
+                >
+                  Get App
+                </Link>
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
                   className="px-5 py-2 border border-white/30 rounded-full text-white hover:border-gold hover:text-gold transition-all duration-300"
@@ -167,6 +173,13 @@ const Navbar = () => {
                 <BarChart3 size={16} /> Analytics
               </Link>
             )}
+            <Link
+              href="/install"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="px-3 py-1 border border-gold/50 text-gold rounded-full text-sm hover:bg-gold hover:text-black transition-all text-center inline-block"
+            >
+              Get App
+            </Link>
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
