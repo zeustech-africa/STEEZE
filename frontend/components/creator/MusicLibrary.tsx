@@ -11,6 +11,8 @@ import {
   Music,
 } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
+import ReportButton from "../ReportButton";
+import AddToPlaylistButton from "../playlist/AddToPlaylistButton";
 
 interface Song {
   id: string;
@@ -21,6 +23,7 @@ interface Song {
   isFree: boolean;
   price: number;
   interactions?: { type: string; userId: string }[];
+  userType?: string;
 }
 
 interface MusicLibraryProps {
@@ -201,9 +204,16 @@ export default function MusicLibrary({
                     )}
                   </button>
                   <div className="min-w-0">
-                    <h4 className="text-white font-medium truncate">
-                      {song.title}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-white font-medium truncate">
+                        {song.title}
+                      </h4>
+                      {song.userType === 'zls_artist' && (
+                        <span className="px-2 py-0.5 bg-gold/20 text-gold text-xs rounded-full shrink-0">
+                          ZLS
+                        </span>
+                      )}
+                    </div>
                     <p className="text-white/35 text-xs truncate">
                       {song.description || "STEEZE Original"}
                     </p>
@@ -229,6 +239,13 @@ export default function MusicLibrary({
                   >
                     <Share2 size={16} />
                   </button>
+                  <AddToPlaylistButton postId={song.id} />
+                  <ReportButton
+                    targetType="post"
+                    targetId={song.id}
+                    targetTitle={song.title}
+                    variant="icon"
+                  />
                   {canAccess(song) && (
                     <a
                       href={song.mediaUrl}

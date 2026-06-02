@@ -66,7 +66,7 @@ export default function PlaylistsPage() {
     <div className="min-h-screen bg-black pt-24 pb-12 px-4">
       <div className="container mx-auto max-w-6xl">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gold">My Playlists</h1>
+          <h1 className="text-3xl font-bold text-gold">YOUR VIBES</h1>
           <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-gold text-black rounded-full flex items-center gap-2 hover:bg-gold/90 transition-all"
@@ -83,7 +83,7 @@ export default function PlaylistsPage() {
               onClick={() => setShowCreateModal(true)}
               className="px-6 py-2 bg-gold text-black rounded-full hover:bg-gold/90 transition-all"
             >
-              Create Your First Playlist
+              START YOUR VIBES
             </button>
           </div>
         ) : (

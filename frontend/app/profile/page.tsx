@@ -11,8 +11,12 @@ import {
   Crown,
   Repeat,
   Clock,
+  Music,
+  ListMusic,
 } from "lucide-react";
 import BottomNav from "../../components/layout/BottomNav";
+import MessageButton from "../../components/MessageButton";
+import { SubscriptionBadge } from "../../components/SubscriptionBadge";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -22,6 +26,10 @@ export default function ProfilePage() {
   const [likedPosts, setLikedPosts] = useState<any[]>([]);
   const [recentlyPlayed, setRecentlyPlayed] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showBioEditor, setShowBioEditor] = useState(false);
+  const [bioText, setBioText] = useState("");
+  const [savingBio, setSavingBio] = useState(false);
+  const [playlists, setPlaylists] = useState<any[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -32,6 +40,16 @@ export default function ProfilePage() {
     }
     setUser(JSON.parse(userData));
     fetchProfileData();
+  }, []);
+
+  useEffect(() => {
+    if (user?.bio) {
+      setBioText(user.bio);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchPlaylists();
   }, []);
 
   const fetchProfileData = async () => {
@@ -68,10 +86,50 @@ export default function ProfilePage() {
     }
   };
 
+  const fetchPlaylists = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_URL}/api/user/playlists`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) setPlaylists(data.playlists || []);
+    } catch (error) {
+      console.error("Fetch playlists error:", error);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     router.push("/");
+  };
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  const saveBio = async () => {
+    setSavingBio(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_URL}/api/user/bio`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ bio: bioText })
+      });
+      if (response.ok) {
+        const updatedUser = { ...user, bio: bioText };
+        setUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        setShowBioEditor(false);
+      }
+    } catch (error) {
+      console.error("Save bio error:", error);
+    } finally {
+      setSavingBio(false);
+    }
   };
 
   if (!user) {
@@ -97,7 +155,7 @@ export default function ProfilePage() {
       <div className="container mx-auto max-w-2xl">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gold">Profile</h1>
+          <h1 className="text-2xl font-bold text-gold">YOUR STEEZE PAGE</h1>
           <button
             onClick={handleLogout}
             aria-label="Log out of account"
@@ -118,17 +176,66 @@ export default function ProfilePage() {
               />
           </div>
           <div>
-            <h2 className="text-white font-bold text-xl">
-              {user.artistName || user.username}
-            </h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-white font-bold text-xl">
+                {user.artistName || user.username}
+              </h2>
+              <SubscriptionBadge tier={user.subscriptionTier || 'free'} size="lg" />
+            </div>
             <p className="text-white/50">@{user.username}</p>
-            {user.subscriptionTier === "gold" && (
-              <p className="text-gold text-xs flex items-center gap-1 mt-1">
-                <Crown size={12} /> Gold Member
-              </p>
-            )}
           </div>
         </div>
+
+        {/* Bio Section */}
+        <div className="mt-4 p-4 bg-white/5 rounded-lg border border-white/10">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-gold text-sm font-semibold uppercase tracking-wider">Bio</h3>
+            <button
+              onClick={() => setShowBioEditor(true)}
+              className="text-white/50 hover:text-gold text-xs transition-all"
+            >
+              Edit
+            </button>
+          </div>
+          {user?.bio ? (
+            <p className="text-white/80 text-sm leading-relaxed">{user.bio}</p>
+          ) : (
+            <p className="text-white/40 text-sm italic">No bio yet. Click edit to add one.</p>
+          )}
+        </div>
+
+        {/* Bio Editor Modal */}
+        {showBioEditor && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900 rounded-2xl max-w-md w-full p-6">
+              <h3 className="text-white text-xl font-bold mb-4">Edit Bio</h3>
+              <textarea
+                value={bioText}
+                onChange={(e) => setBioText(e.target.value)}
+                placeholder="Tell your story... what music do you love? What creators inspire you?"
+                rows={4}
+                maxLength={150}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 resize-none"
+              />
+              <p className="text-white/40 text-xs text-right mt-1">{bioText.length}/150</p>
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowBioEditor(false)}
+                  className="flex-1 px-4 py-2 border border-white/30 text-white rounded-lg hover:border-gold"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveBio}
+                  disabled={savingBio}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-gold to-gold-dark text-black font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                >
+                  {savingBio ? "Saving..." : "Save Bio"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="flex gap-4 mb-6">
@@ -152,7 +259,7 @@ export default function ProfilePage() {
             href="/settings"
             className="block w-full mb-6 py-2 bg-gold text-black rounded-full text-center font-semibold"
           >
-            Edit Profile
+            BUILD YOUR STEEZE
           </Link>
         ) : (
           <button
@@ -162,6 +269,11 @@ export default function ProfilePage() {
             Switch to Creator
           </button>
         )}
+
+        {/* Message Button */}
+        <div className="flex justify-center mb-6">
+          <MessageButton userId={user.id} userName={user.fullName || user.artistName || user.username} />
+        </div>
 
         {/* Tabs */}
         <div className="flex gap-3 border-b border-white/10 mb-4">
@@ -276,6 +388,39 @@ export default function ProfilePage() {
                     {item.attribution}
                   </div>
                 )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Playlists Section */}
+      <div className="mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-white text-xl font-bold flex items-center gap-2">
+            <ListMusic size={20} className="text-gold" /> My Playlists
+          </h2>
+          <Link href="/profile/playlists" className="text-gold text-sm hover:underline">
+            View All →
+          </Link>
+        </div>
+        {playlists.length === 0 ? (
+          <div className="bg-white/5 rounded-xl p-8 text-center">
+            <Music size={32} className="mx-auto text-white/20 mb-3" />
+            <p className="text-white/50 mb-3">No playlists yet</p>
+            <Link href="/profile/playlists" className="text-gold text-sm">
+              Create your first playlist
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {playlists.slice(0, 4).map((playlist) => (
+              <Link key={playlist.id} href={`/profile/playlists/${playlist.id}`} className="bg-white/5 rounded-xl p-3 hover:bg-white/10 transition-all">
+                <div className="aspect-square bg-gradient-to-br from-gold/20 to-black rounded-lg flex items-center justify-center mb-2">
+                  <Music size={24} className="text-gold/50" />
+                </div>
+                <p className="text-white font-medium text-sm truncate">{playlist.name}</p>
+                <p className="text-white/40 text-xs">{playlist.songs?.length || 0} songs</p>
               </Link>
             ))}
           </div>

@@ -70,6 +70,12 @@ const Hero = () => {
           >
             Join as VIBES
           </Link>
+          <Link
+            href="/just-vibes/signup"
+            className="px-8 py-4 border-2 border-purple-500 text-purple-500 font-bold rounded-full text-lg hover:bg-purple-500 hover:text-white transition-all duration-300 transform hover:scale-105"
+          >
+            Just VIBES
+          </Link>
         </div>
 
         <div className="scroll-indicator" onClick={scrollToNext}>

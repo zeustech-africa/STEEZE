@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { X, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -11,6 +12,7 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ isOpen, onClose, onSwitchToGetStarted }: LoginModalProps) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -61,11 +63,19 @@ export default function LoginModal({ isOpen, onClose, onSwitchToGetStarted }: Lo
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Redirect based on role
-        if (data.user.role === "creator") {
-          window.location.href = "/creator/dashboard";
+        if (data.user.role === "admin") {
+          setError("Admin login is not available here. Please use the admin portal.");
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          return;
+        }
+
+        if (data.user.userType === "creator") {
+          router.push(`/creator/${data.user.username || data.user.artistName}`);
+        } else if (data.user.userType === "vibe") {
+          router.push("/");
         } else {
-          window.location.href = "/vibes/dashboard";
+          setError("Invalid account type");
         }
       } else {
         setError(data.message || "Invalid email or password");
@@ -181,7 +191,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToGetStarted }: Lo
                     }}
                     className="text-white/50 text-sm hover:text-gold transition-colors"
                   >
-                    Don't have an account? Get Started →
+                    Don't have an account? GET STEEZE →
                   </button>
                 </div>
               </form>

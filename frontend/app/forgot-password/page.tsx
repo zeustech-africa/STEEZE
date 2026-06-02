@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Captcha from "@/components/Captcha";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -10,6 +11,8 @@ export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,12 +23,17 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    if (!captchaToken) {
+      setError("Please complete the CAPTCHA verification");
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), cfTurnstileResponse: captchaToken }),
       });
       const data = await response.json();
       if (data.success) {
@@ -99,9 +107,19 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
 
+                <div className="flex justify-center my-4">
+                  <Captcha
+                    onVerify={setCaptchaToken}
+                    onError={() => setCaptchaError(true)}
+                  />
+                </div>
+                {captchaError && (
+                  <p className="text-red-400 text-xs text-center mt-1">CAPTCHA verification failed. Please try again.</p>
+                )}
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !captchaToken}
                   className="w-full py-3 bg-[#FFD700] text-black font-semibold rounded-lg hover:bg-[#FFD700]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? "Sending..." : "Send Reset Link"}

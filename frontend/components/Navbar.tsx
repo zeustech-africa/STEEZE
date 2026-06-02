@@ -4,42 +4,54 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Menu, X, Bell, BarChart3, LogOut, Settings, User } from "lucide-react";
+import { Menu, X, Bell, BarChart3, LogOut, Settings, User, MessageCircle } from "lucide-react";
 import GetStartedModal from "./GetStartedModal";
 import LoginModal from "./LoginModal";
 import NotificationCenter from "./notifications/NotificationCenter";
+import { useAuthStore } from "@/stores";
+import { useJustVibes } from "@/hooks/useJustVibes";
+import { JustVibesTimer } from "@/components/JustVibesTimer";
 
 const Navbar = () => {
   const router = useRouter();
+  const { user, isAuthenticated, logout } = useAuthStore();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isGetStartedModalOpen, setIsGetStartedModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userType, setUserType] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
+  const userId = user?.id ?? null;
+  const userType = user?.userType ?? null;
+  const isLoggedIn = isAuthenticated;
+  const { isAuthenticated: isJustVibesAuth } = useJustVibes();
+
+  // Fetch unread message count for notification badge
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userStr = localStorage.getItem("user");
-    if (token && userStr) {
-      setIsLoggedIn(true);
+    if (!isLoggedIn) return;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    const fetchUnreadCount = async () => {
       try {
-        const user = JSON.parse(userStr);
-        setUserId(user.id || null);
-        setUserType(user.userType || null);
-      } catch {
-        setUserId(null);
+        const token = localStorage.getItem("token");
+        const response = await fetch(`${API_URL}/api/messages/unread-count`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          setUnreadMessageCount(data.total || 0);
+        }
+      } catch (error) {
+        // silently fail — non-critical UI feature
       }
-    }
-  }, []);
+    };
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn]);
 
   const handleLogout = () => {
+    logout();
     localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setIsLoggedIn(false);
-    setUserId(null);
-    setUserType(null);
     router.push("/");
   };
 
@@ -66,6 +78,7 @@ const Navbar = () => {
     { name: "For Creators", href: "#creators" },
     { name: "For Fans", href: "#fans" },
     { name: "How It Works", href: "#how-it-works" },
+    { name: "Advertise", href: "/advertise" },
   ];
 
   return (
@@ -94,51 +107,68 @@ const Navbar = () => {
               <Link
                 key={link.name}
                 href={link.href}
+                aria-label={link.name}
                 className="text-white/80 hover:text-gold transition-colors duration-300 font-medium"
               >
                 {link.name}
               </Link>
             ))}
             {(userType === 'zls_artist' || userType === 'independent_creator') && (
-              <Link href="/analytics" className="text-white/80 hover:text-gold transition-colors duration-300 font-medium flex items-center gap-1">
-                <BarChart3 size={16} /> Analytics
+              <Link href="/analytics" aria-label="Analytics" className="text-white/80 hover:text-gold transition-colors duration-300 font-medium flex items-center gap-1">
+                <BarChart3 size={16} aria-hidden="true" /> Analytics
               </Link>
             )}
             {userId && <NotificationCenter userId={userId} apiBase="/api/creators" />}
+            {userId && (
+              <Link href="/inbox" aria-label="Inbox" className="relative text-white/80 hover:text-gold transition-colors">
+                <MessageCircle size={20} aria-hidden="true" />
+                {unreadMessageCount > 0 && (
+                  <span className="absolute -top-1 -right-2 w-4 h-4 bg-gold text-black text-xs rounded-full flex items-center justify-center">
+                    {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                  </span>
+                )}
+              </Link>
+            )}
+            {/* Just VIBES timer */}
+            {isJustVibesAuth && <JustVibesTimer />}
             {isLoggedIn ? (
               <>
-                <Link href="/profile" className="text-white/80 hover:text-gold transition-colors duration-300 font-medium flex items-center gap-1">
-                  <User size={16} /> Profile
+                <Link href="/profile" aria-label="Profile" className="text-white/80 hover:text-gold transition-colors duration-300 font-medium flex items-center gap-1">
+                  <User size={16} aria-hidden="true" /> Profile
                 </Link>
-                <Link href="/settings" className="text-white/80 hover:text-gold transition-colors duration-300 font-medium flex items-center gap-1">
-                  <Settings size={16} /> Settings
+                <Link href="/settings" aria-label="Settings" className="text-white/80 hover:text-gold transition-colors duration-300 font-medium flex items-center gap-1">
+                  <Settings size={16} aria-hidden="true" /> Settings
                 </Link>
                 <button
                   onClick={handleLogout}
+                  aria-label="Logout"
                   className="px-5 py-2 border border-red-500/50 rounded-full text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-300 flex items-center gap-1"
                 >
-                  <LogOut size={16} /> Logout
+                  <LogOut size={16} aria-hidden="true" /> Logout
                 </button>
               </>
             ) : (
               <>
                 <Link
                   href="/install"
+                  aria-label="Get App"
                   className="px-3 py-1 border border-gold/50 text-gold rounded-full text-sm hover:bg-gold hover:text-black transition-all"
                 >
                   Get App
                 </Link>
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
+                  aria-label="Login"
                   className="px-5 py-2 border border-white/30 rounded-full text-white hover:border-gold hover:text-gold transition-all duration-300"
                 >
-                  Login
+                  ENTER THE VIBES
                 </button>
                 <button
                   onClick={() => setIsGetStartedModalOpen(true)}
+                  aria-label="Get Started"
                   className="px-5 py-2 bg-gradient-to-r from-gold to-gold-dark text-black font-semibold rounded-full hover:shadow-lg hover:shadow-gold/25 transition-all duration-300"
                 >
-                  Get Started
+                  GET STEEZE
                 </button>
               </>
             )}
@@ -162,6 +192,7 @@ const Navbar = () => {
               <Link
                 key={link.name}
                 href={link.href}
+                aria-label={link.name}
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-white/80 hover:text-gold transition-colors py-2"
               >
@@ -169,12 +200,15 @@ const Navbar = () => {
               </Link>
             ))}
             {(userType === 'zls_artist' || userType === 'independent_creator') && (
-              <Link href="/analytics" onClick={() => setIsMobileMenuOpen(false)} className="text-white/80 hover:text-gold transition-colors py-2 flex items-center gap-1">
-                <BarChart3 size={16} /> Analytics
+              <Link href="/analytics" aria-label="Analytics" onClick={() => setIsMobileMenuOpen(false)} className="text-white/80 hover:text-gold transition-colors py-2 flex items-center gap-1">
+                <BarChart3 size={16} aria-hidden="true" /> Analytics
               </Link>
             )}
+            {/* Just VIBES timer in mobile */}
+            {isJustVibesAuth && <JustVibesTimer />}
             <Link
               href="/install"
+              aria-label="Get App"
               onClick={() => setIsMobileMenuOpen(false)}
               className="px-3 py-1 border border-gold/50 text-gold rounded-full text-sm hover:bg-gold hover:text-black transition-all text-center inline-block"
             >
@@ -185,18 +219,20 @@ const Navbar = () => {
                 setIsMobileMenuOpen(false);
                 setIsLoginModalOpen(true);
               }}
+              aria-label="Login"
               className="px-5 py-2 border border-white/30 rounded-full text-white text-center hover:border-gold"
             >
-              Login
+              ENTER THE VIBES
             </button>
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
                 setIsGetStartedModalOpen(true);
               }}
+              aria-label="Get Started"
               className="px-5 py-2 bg-gradient-to-r from-gold to-gold-dark text-black font-semibold rounded-full text-center"
             >
-              Get Started
+              GET STEEZE
             </button>
           </div>
         )}

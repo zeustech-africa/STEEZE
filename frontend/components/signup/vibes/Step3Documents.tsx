@@ -12,6 +12,8 @@ interface Step3DocumentsProps {
 }
 
 export default function Step3Documents({ data, updateData, onNext, onBack, markComplete }: Step3DocumentsProps) {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   const [idType, setIdType] = useState((data.idType as string) || "passport");
   const [idFile, setIdFile] = useState<File | null>((data.idFile as File) || null);
   const [idPreview, setIdPreview] = useState((data.idPreview as string) || null);
@@ -20,6 +22,9 @@ export default function Step3Documents({ data, updateData, onNext, onBack, markC
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const idTypes = [
     { value: "passport", label: "Passport" },
@@ -59,10 +64,79 @@ export default function Step3Documents({ data, updateData, onNext, onBack, markC
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
-    if (validate()) {
-      markComplete();
-      onNext();
+  const handleNext = async () => {
+    if (!validate()) return;
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+
+      // Get user data from parent component props
+      // These values come from Step1 and Step2
+      const userType = 'vibes';
+      const email = (data as any).email || '';
+      const password = (data as any).password || '';
+      const fullName = (data as any).fullName || '';
+      const phoneNumber = (data as any).phoneNumber || '';
+      const username = (data as any).username || '';
+
+      // Validate required fields from previous steps
+      if (!email || !password || !fullName) {
+        setUploadError('Please complete all required fields in previous steps first.');
+        return;
+      }
+
+      // Append all data to FormData
+      formData.append('userType', userType);
+      formData.append('email', email);
+      formData.append('password', password);
+      formData.append('fullName', fullName);
+      if (phoneNumber) formData.append('phoneNumber', phoneNumber);
+      if (username) formData.append('username', username);
+
+      // Append the ID document file
+      if (idFile) {
+        formData.append('idDocument', idFile);
+      } else {
+        setUploadError('Please upload your ID document first.');
+        return;
+      }
+
+      // Store additional user data
+      const additionalData = {
+        idType,
+        idNumber,
+        country,
+        birthDate: (data as any).birthDate,
+        age: (data as any).age,
+        consents: (data as any).consents
+      };
+      formData.append('userData', JSON.stringify(additionalData));
+
+      // Make API call
+      const response = await fetch(`${API_URL}/api/verification/register-step1`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.userId) {
+        // Mark step as complete
+        markComplete();
+        // Redirect to selfie page with userId
+        window.location.href = `/verification/selfie?userId=${result.userId}`;
+      } else {
+        setUploadError(result.error || 'Registration failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadError('Network error. Please check your connection and try again.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -117,12 +191,32 @@ export default function Step3Documents({ data, updateData, onNext, onBack, markC
         {errors.country && <p className="text-red-500 text-xs mt-1">{errors.country}</p>}
       </div>
 
+      {uploadError && (
+        <div className="p-3 bg-red-500/20 border border-red-500 rounded-lg">
+          <p className="text-red-400 text-sm text-center">{uploadError}</p>
+        </div>
+      )}
+
       <div className="flex justify-between pt-4 border-t border-white/10">
         <button type="button" onClick={onBack} className="px-8 py-3 border border-white/30 text-white rounded-full hover:border-gold transition-all flex items-center gap-2">
           <ChevronLeft size={18} /> Back
         </button>
-        <button type="button" onClick={handleNext} className="px-8 py-3 bg-gradient-to-r from-gold to-gold-dark text-black font-bold rounded-full hover:shadow-lg transition-all flex items-center gap-2">
-          Next Step <ChevronRight size={18} />
+        <button
+          type="button"
+          onClick={handleNext}
+          disabled={uploading}
+          className="px-8 py-3 bg-gradient-to-r from-gold to-gold-dark text-black font-bold rounded-full hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+        >
+          {uploading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              Submitting...
+            </>
+          ) : (
+            <>
+              Next Step <ChevronRight size={18} />
+            </>
+          )}
         </button>
       </div>
     </div>

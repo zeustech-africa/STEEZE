@@ -104,13 +104,19 @@ const Hero = () => {
             href="/signup/creator"
             className="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-black font-bold rounded-full text-lg hover:shadow-2xl hover:shadow-gold/30 transition-all duration-300 transform hover:scale-105"
           >
-            Join as Creator
+            BRING YOUR STEEZE
           </Link>
           <Link
             href="/signup/vibes"
             className="px-8 py-4 border-2 border-neon-blue text-neon-blue font-bold rounded-full text-lg hover:bg-neon-blue hover:text-black transition-all duration-300 transform hover:scale-105"
           >
-            Join as VIBES
+            FEEL THE VIBES
+          </Link>
+          <Link
+            href="/just-vibes/signup"
+            className="px-8 py-4 border-2 border-purple-500 text-purple-500 font-bold rounded-full text-lg hover:bg-purple-500 hover:text-white transition-all duration-300 transform hover:scale-105"
+          >
+            Just VIBES
           </Link>
 
           {/* Install App Button - shown on mobile devices */}

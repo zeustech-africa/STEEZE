@@ -54,6 +54,8 @@ transition-colors">Security</Link></li>
 transition-colors">For Creators</Link></li>
               <li><Link href="/signup/vibes" className="text-white/50 hover:text-gold text-sm 
 transition-colors">For VIBES</Link></li>
+              <li><Link href="/advertise" className="text-white/50 hover:text-gold text-sm 
+transition-colors">Advertise</Link></li>
             </ul>
           </div>
 

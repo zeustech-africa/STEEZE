@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+const { withSentryConfig } = require('@sentry/nextjs');
 
 const withPWA = require('next-pwa')({
   dest: 'public',
@@ -45,6 +46,9 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig: NextConfig = {
+  reactStrictMode: true,
+  compress: true,
+  poweredByHeader: false,
   turbopack: {},
   images: {
     remotePatterns: [
@@ -52,10 +56,12 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'pub-84198ca15564cde3343014d06849cf09.r2.dev' },
       { protocol: 'https', hostname: 'cdn.steeze.com' },
       { protocol: 'https', hostname: 'steeze.b-cdn.net' },
+      { protocol: 'https', hostname: '**.r2.cloudflarestorage.com', pathname: '/steeze-media/**' },
+      { protocol: 'https', hostname: '**.r2.dev', pathname: '/**' },
     ],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    formats: ['image/webp'],
+    formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
@@ -72,4 +78,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-module.exports = withPWA(nextConfig);
+const configWithPWA = withPWA(nextConfig);
+
+module.exports = withSentryConfig(configWithPWA, {
+  org: "your-org",
+  project: "steeze-frontend",
+  silent: true,
+  widenClientFileUpload: true,
+});

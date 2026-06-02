@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, Compass, Plus, MessageCircle, User, Camera, Image, BarChart3 } from "lucide-react";
 import { useState } from "react";
+import { useJustVibes } from "@/hooks/useJustVibes";
+import { useJustVibesRestriction } from "@/components/JustVibesRestrictionPopup";
 
 interface BottomNavProps {
   isCreator: boolean;
@@ -13,6 +15,15 @@ interface BottomNavProps {
 export default function BottomNav({ isCreator, onUploadClick }: BottomNavProps) {
   const pathname = usePathname();
   const [showUploadMenu, setShowUploadMenu] = useState(false);
+  const { isAuthenticated: isJustVibesAuth } = useJustVibes();
+  const { showRestrictionPopup, RestrictionPopup } = useJustVibesRestriction();
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    if (isJustVibesAuth) {
+      e.preventDefault();
+      showRestrictionPopup('profile');
+    }
+  };
 
   const navItems = [
     { name: "Home", icon: Home, href: "/", active: pathname === "/" },
@@ -31,8 +42,9 @@ export default function BottomNav({ isCreator, onUploadClick }: BottomNavProps) 
 
   return (
     <>
-      <nav role="navigation" aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/10 py-2 px-4">
-        <div className="container mx-auto max-w-lg flex justify-around items-center">
+      <RestrictionPopup />
+      <nav role="navigation" aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-lg border-t border-white/10 z-50 md:hidden pb-safe">
+        <div className="flex justify-around items-center py-2 pb-[env(safe-area-inset-bottom)]">
           {navItems.map((item) => {
             const Icon = item.icon;
             if (item.isButton) {
@@ -47,6 +59,24 @@ export default function BottomNav({ isCreator, onUploadClick }: BottomNavProps) 
                 </button>
               );
             }
+            // Profile special handling for Just VIBES
+            if (item.name === "Profile" && isJustVibesAuth) {
+              return (
+                <button
+                  key={item.name}
+                  onClick={handleProfileClick}
+                  aria-label={item.name}
+                  aria-current={item.active ? 'page' : undefined}
+                  className={`flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-all ${
+                    item.active ? "text-gold" : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  <Icon size={22} aria-hidden="true" />
+                  <span className="text-[10px]">{item.name}</span>
+                </button>
+              );
+            }
+
             return (
               <Link
                 key={item.name}

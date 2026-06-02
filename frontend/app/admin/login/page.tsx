@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Shield } from "lucide-react";
+import { Shield, AlertTriangle, Lock, Fingerprint, Loader2 } from "lucide-react";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
           setError("Access denied. Admin privileges required.");
         }
       } else {
-        setError("Invalid email or password");
+        setError("Invalid credentials");
       }
     } catch (err) {
       setError("Login failed. Please try again.");
@@ -43,43 +43,68 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-4">
-      <div className="glass-card p-8 w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-red-950/30 via-black to-black flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Security pattern background */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute top-0 left-0 w-full h-full bg-[repeating-linear-gradient(45deg,#000,#000_20px,#FFD70020_20px,#FFD70020_40px)]" />
+      </div>
+
+      {/* Red alert glow */}
+      <div className="absolute inset-0 bg-red-600/5 blur-3xl" />
+
+      <div className="glass-card p-8 w-full max-w-md relative z-10 border-t-2 border-red-500 shadow-2xl shadow-red-500/10">
+        {/* Security Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex p-3 rounded-full bg-gold/20 mb-4">
-            <Shield className="text-gold" size={32} />
+          <div className="inline-flex items-center justify-center gap-2 mb-3">
+            <Shield className="text-red-500" size={32} />
+            <span className="text-red-500 text-xl font-bold tracking-wider">STEEZE ADMIN</span>
           </div>
-          <h1 className="text-2xl font-bold text-gold">Admin Login</h1>
-          <p className="text-white/50 text-sm mt-1">Enter your credentials to access the admin panel</p>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <AlertTriangle className="text-yellow-500" size={16} />
+            <h1 className="text-xl font-bold text-white">Restricted Access</h1>
+            <AlertTriangle className="text-yellow-500" size={16} />
+          </div>
+          <p className="text-white/50 text-sm">Authorized personnel only</p>
+        </div>
+
+        {/* Warning banner */}
+        <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <p className="text-red-400 text-xs text-center flex items-center justify-center gap-2">
+            <Lock size={14} aria-hidden="true" /> Unauthorized access is prohibited. All activities are monitored and logged.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-white/70 text-sm mb-1">Email</label>
+            <label className="block text-white/70 text-sm mb-1" htmlFor="admin-email">Admin Email</label>
             <input
+              id="admin-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all"
               placeholder="admin@steeze.com"
               required
+              autoComplete="email"
             />
           </div>
 
           <div>
-            <label className="block text-white/70 text-sm mb-1">Password</label>
+            <label className="block text-white/70 text-sm mb-1" htmlFor="admin-password">Security Key</label>
             <input
+              id="admin-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all"
               placeholder="••••••••"
               required
+              autoComplete="current-password"
             />
           </div>
 
           {error && (
-            <div className="p-3 bg-red-500/20 border border-red-500 rounded-lg">
+            <div className="p-3 bg-red-500/20 border border-red-500 rounded-lg" role="alert">
               <p className="text-red-400 text-sm text-center">{error}</p>
             </div>
           )}
@@ -87,16 +112,20 @@ export default function AdminLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-gold to-gold-dark text-black font-bold rounded-full hover:shadow-lg transition-all disabled:opacity-50"
+            className="w-full py-3 bg-red-600/20 border border-red-500 text-red-400 font-bold rounded-full hover:bg-red-600 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Fingerprint size={18} />}
+            {loading ? "Authenticating..." : "Authenticate Access"}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <a href="/" className="text-white/40 text-sm hover:text-gold transition-colors">
-            ← Back to STEEZE
-          </a>
+        <div className="mt-6 pt-4 border-t border-white/10 text-center">
+          <p className="text-white/30 text-xs">
+            ⚠️ This is a secure administrative interface. All access attempts are recorded.
+          </p>
+          <p className="text-white/20 text-xs mt-2">
+            STEEZE Admin v1.0 | ZeusTech
+          </p>
         </div>
       </div>
     </div>

@@ -1,152 +1,169 @@
-"use client";
+'use client';
 
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import BackToHomeButton from "@/components/BackToHomeButton";
+import { Zap, Music, Users, TrendingUp, Crown, Sparkles } from 'lucide-react';
 
 export default function AboutPage() {
+  const features = [
+    {
+      icon: Zap,
+      title: 'Your STEEZE, Your Energy',
+      description: 'STEEZE is the energy creators bring. It\'s your unique style, vibe, and presence. We help you showcase it.'
+    },
+    {
+      icon: Music,
+      title: 'Premium Templates',
+      description: 'Choose from 7 signature STEEZE templates designed by top creators. Each one is a complete website experience.'
+    },
+    {
+      icon: Users,
+      title: 'Community First',
+      description: 'Join a community of creators who are redefining what it means to connect with fans.'
+    },
+    {
+      icon: TrendingUp,
+      title: 'Grow Your Audience',
+      description: 'Built-in tools to help you reach more fans, monetize your content, and build your brand.'
+    },
+    {
+      icon: Crown,
+      title: 'Creator Owned',
+      description: 'You own your content, your audience, and your STEEZE. We\'re just here to power your vision.'
+    },
+    {
+      icon: Sparkles,
+      title: 'Your VIBES, Their Feeling',
+      description: 'VIBES is what fans feel when they experience your STEEZE. Create moments that matter.'
+    }
+  ];
+
   return (
-    <>
-      <Navbar />
-      <main className="min-h-screen bg-black pt-24">
-        <div className="max-w-4xl mx-auto px-4">
-          <BackToHomeButton />
+    <div className="min-h-screen bg-black">
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-r from-gold/20 to-black py-20">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 text-center">
+          <h1 className="text-4xl md:text-6xl font-bold text-gold mb-4">About STEEZE</h1>
+          <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+            Empowering creators to share their STEEZE and deliver unforgettable VIBES.
+          </p>
         </div>
-        {/* Hero Banner */}
-        <section className="relative py-20 px-4">
-          <div className="absolute inset-0 bg-gradient-to-b from-gold/10 to-transparent" />
-          <div className="relative z-10 max-w-4xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-gold via-gold-dark to-gold bg-clip-text text-transparent">
-                About STEEZE
-              </span>
-            </h1>
-            <p className="text-white/60 text-lg">
-              The verified entertainment platform, powered by ZeusLiveStudio.
-            </p>
-          </div>
-        </section>
+      </div>
 
-        {/* Mission Statement */}
-        <section className="py-16 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="glass-card p-8 md:p-12">
-              <h2 className="text-2xl font-bold text-gold mb-6">Our Mission</h2>
-              <p className="text-white/80 text-lg leading-relaxed mb-4">
-                STEEZE exists to create a pure entertainment ecosystem where only verified creators
-                can post content. We are committed to building Africa's premier entertainment
-                platform—free from politics, violence, sadness, and fake content.
-              </p>
-              <p className="text-white/80 text-lg leading-relaxed">
-                Our mission is simple: <span className="text-gold font-semibold">You want style, you want entertainment,
-                you want music... you need STEEZE.</span> We provide a safe, verified space where
-                creators and fans connect through authentic entertainment.
-              </p>
-            </div>
-          </div>
-        </section>
+      {/* Mission Section */}
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Our Mission</h2>
+          <div className="w-20 h-1 bg-gold mx-auto mb-6"></div>
+          <p className="text-gray-300 text-lg max-w-3xl mx-auto">
+            To give every creator a platform that truly represents their STEEZE. 
+            No compromises. No templates that look like everyone else. Just pure, authentic energy.
+          </p>
+        </div>
+      </div>
 
-        {/* Company History */}
-        <section className="py-16 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="glass-card p-8 md:p-12">
-              <h2 className="text-2xl font-bold text-gold mb-6">Our Story</h2>
-              <div className="space-y-4 text-white/70 leading-relaxed">
-                <p>
-                  <span className="text-neon-blue font-semibold">ZeusTech</span> was founded in
-                  Cape Town, South Africa, with a vision to revolutionize digital entertainment
-                  across the African continent and beyond.
-                </p>
-                <p>
-                  Recognizing the challenges creators face—from content piracy to platform
-                  saturation with negative content—ZeusTech developed{" "}
-                  <span className="text-gold font-semibold">STEEZE</span> as the solution:
-                  a verified-only entertainment platform that prioritizes quality, authenticity,
-                  and pure entertainment.
-                </p>
-                <p>
-                  In 2026, ZeusTech launched{" "}
-                  <span className="text-neon-blue font-semibold">ZeusLiveStudio</span>, the
-                  powerhouse technology behind STEEZE, enabling seamless creator tools, fan
-                  engagement features, and the revolutionary Zeusonic audio engine.
-                </p>
-                <p>
-                  Today, STEEZE is poised to become Africa's leading entertainment platform,
-                  built on three core pillars: <span className="text-gold">Verification</span>,
-                  <span className="text-gold"> Quality</span>, and{" "}
-                  <span className="text-gold">Community</span>.
+      {/* Philosophy Section */}
+      <div className="bg-gray-900 py-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold text-gold mb-4">STEEZE & VIBES</h2>
+              <div className="w-20 h-1 bg-gold mb-6"></div>
+              <p className="text-gray-300 text-lg mb-4">
+                <span className="text-gold font-bold">STEEZE</span> is the energy creators bring. 
+                It's your unique style, your presence, your essence.
+              </p>
+              <p className="text-gray-300 text-lg">
+                <span className="text-gold font-bold">VIBES</span> is what fans feel when they experience your STEEZE. 
+                It's the connection, the emotion, the moment.
+              </p>
+              <div className="mt-8 p-4 bg-black/50 border border-gold/20 rounded-lg">
+                <p className="text-white italic">
+                  "No STEEZE = No VIBES. Your energy creates their feeling."
                 </p>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* Vision */}
-        <section className="py-16 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="glass-card p-8 md:p-12">
-              <h2 className="text-2xl font-bold text-gold mb-6">The Vision for African Entertainment</h2>
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl mb-3">🌍</div>
-                  <h3 className="text-white font-semibold mb-2">African First</h3>
-                  <p className="text-white/50 text-sm">
-                    Built in Africa, for Africa—showcasing the continent's incredible
-                    creative talent to the world.
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl mb-3">✅</div>
-                  <h3 className="text-white font-semibold mb-2">Verified Only</h3>
-                  <p className="text-white/50 text-sm">
-                    Every creator is verified. Every piece of content is approved. No fakes,
-                    no bots, no drama.
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl mb-3">🎵</div>
-                  <h3 className="text-white font-semibold mb-2">Pure Entertainment</h3>
-                  <p className="text-white/50 text-sm">
-                    Music, comedy, dance, drama—only the content that makes life better.
-                  </p>
-                </div>
-              </div>
+            <div className="bg-gradient-to-br from-gold/10 to-black p-8 rounded-xl border border-gold/20">
+              <h3 className="text-2xl font-bold text-white mb-4">Why Creators Choose STEEZE</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <span className="text-gold text-xl">✦</span>
+                  <span className="text-gray-300">Full website-style profiles, not social media grids</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-gold text-xl">✦</span>
+                  <span className="text-gray-300">7 premium templates designed by creators</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-gold text-xl">✦</span>
+                  <span className="text-gray-300">Monetize your content your way</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-gold text-xl">✦</span>
+                  <span className="text-gray-300">Own your audience, no algorithms</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-gold text-xl">✦</span>
+                  <span className="text-gray-300">Built in Cape Town, South Africa</span>
+                </li>
+              </ul>
             </div>
           </div>
-        </section>
+        </div>
+      </div>
 
-        {/* Team */}
-        <section className="py-16 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="glass-card p-8 md:p-12">
-              <h2 className="text-2xl font-bold text-gold mb-6">Our Team</h2>
-              <p className="text-white/70 mb-8">
-                STEEZE is built by a passionate team at ZeusTech in Cape Town, South Africa.
-                We are engineers, designers, and entertainment enthusiasts united by a single goal:
-                building the best entertainment platform in the world.
-              </p>
-              <div className="glass p-6 rounded-xl text-center">
-                <p className="text-white/50 text-sm">
-                  Full team bios coming soon. We're growing fast—check our{" "}
-                  <a href="/careers" className="text-gold hover:underline">Careers page</a>{" "}
-                  for opportunities to join us.
-                </p>
+      {/* Features Grid */}
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">What Makes STEEZE Different</h2>
+          <div className="w-20 h-1 bg-gold mx-auto mb-6"></div>
+          <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+            We built STEEZE for creators who refuse to blend in.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <div
+                key={index}
+                className="bg-gray-900 rounded-xl p-6 border border-gray-800 hover:border-gold/50 transition-all duration-300 hover:-translate-y-1"
+              >
+                <div className="w-12 h-12 bg-gold/10 rounded-lg flex items-center justify-center mb-4">
+                  <Icon className="w-6 h-6 text-gold" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
+                <p className="text-gray-400">{feature.description}</p>
               </div>
-            </div>
-          </div>
-        </section>
+            );
+          })}
+        </div>
+      </div>
 
-        {/* CTA */}
-        <section className="py-16 px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <p className="text-gold text-lg font-semibold mb-4">Powered by ZeusLiveStudio</p>
-            <p className="text-white/40 text-sm">
-              © {new Date().getFullYear()} ZeusTech. Cape Town, South Africa.
-            </p>
+      {/* CTA Section */}
+      <div className="bg-gradient-to-r from-gold/10 via-black to-gold/10 py-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            Ready to Find Your STEEZE?
+          </h2>
+          <p className="text-gray-300 text-lg mb-8 max-w-2xl mx-auto">
+            Join creators who are already sharing their energy and creating unforgettable VIBES.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href="/signup"
+              className="px-8 py-3 bg-gold hover:bg-gold-dark text-black font-semibold rounded-lg transition-all duration-300 hover:scale-105"
+            >
+              Become a Creator
+            </a>
+            <a
+              href="/explore"
+              className="px-8 py-3 border border-gold text-gold hover:bg-gold/10 rounded-lg transition-all duration-300"
+            >
+              Explore Creators
+            </a>
           </div>
-        </section>
-      </main>
-      <Footer />
-    </>
+        </div>
+      </div>
+    </div>
   );
 }

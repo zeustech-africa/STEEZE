@@ -1,224 +1,484 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Image from "next/image";
-import { Crown, CreditCard, XCircle, ChevronDown, Clock, RefreshCw, Mail } from "lucide-react";
-import Link from "next/link";
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/stores/authStore';
+import { 
+  Crown, 
+  CheckCircle, 
+  CreditCard, 
+  Loader2,
+  AlertTriangle
+} from 'lucide-react';
+import Link from 'next/link';
 
-export default function SubscriptionManagementPage() {
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  priceDisplay: string;
+  features: string[];
+  badgeColor: string;
+  badgeBgColor: string;
+  buttonColor: string;
+  popular?: boolean;
+}
+
+interface PaymentHistory {
+  id: string;
+  amount: number;
+  amountRands: string;
+  status: string;
+  createdAt: string;
+}
+
+const PLANS: Plan[] = [
+  {
+    id: 'free',
+    name: 'FREE VIBES',
+    price: 0,
+    priceDisplay: 'Free',
+    features: [
+      'Browse global feed',
+      'Like, comment, save posts',
+      'Follow creators',
+      'Create playlists',
+      'Standard streaming quality',
+      'Ads supported'
+    ],
+    badgeColor: 'text-gray-400',
+    badgeBgColor: 'bg-gray-500/10',
+    buttonColor: 'bg-gray-600 hover:bg-gray-700'
+  },
+  {
+    id: 'basic',
+    name: 'BASIC VIBES',
+    price: 49,
+    priceDisplay: 'R49',
+    features: [
+      'Everything in FREE VIBES',
+      'No ads',
+      'Download offline content',
+      'Background playback',
+      'Better streaming quality',
+      'Early access drops'
+    ],
+    badgeColor: 'text-amber-500',
+    badgeBgColor: 'bg-amber-500/10',
+    buttonColor: 'bg-amber-600 hover:bg-amber-700',
+    popular: true
+  },
+  {
+    id: 'premium',
+    name: 'PREMIUM VIBES',
+    price: 99,
+    priceDisplay: 'R99',
+    features: [
+      'Everything in BASIC VIBES',
+      'Subscriber-only content',
+      'Early access to releases',
+      'Premium creator rooms',
+      'Watch parties',
+      'Top-fan recognition'
+    ],
+    badgeColor: 'text-gray-400',
+    badgeBgColor: 'bg-gray-500/10',
+    buttonColor: 'bg-gray-600 hover:bg-gray-700'
+  },
+  {
+    id: 'gold',
+    name: 'GOLDEN VIBES',
+    price: 199,
+    priceDisplay: 'R199',
+    features: [
+      'Everything in PREMIUM VIBES',
+      'VIP creator experiences',
+      'Exclusive livestreams',
+      'Behind-the-scenes access',
+      'Golden badge on profile',
+      'Priority support'
+    ],
+    badgeColor: 'text-yellow-500',
+    badgeBgColor: 'bg-yellow-500/10',
+    buttonColor: 'bg-yellow-600 hover:bg-yellow-700'
+  }
+];
+
+export default function SubscriptionsPage() {
+  const router = useRouter();
+  const { token, isAuthenticated } = useAuthStore();
+  const [currentTier, setCurrentTier] = useState<string>('free');
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('active');
+  const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState<string | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showPayments, setShowPayments] = useState(false);
+  const [upgrading, setUpgrading] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
+  // Fetch subscription status
   useEffect(() => {
-    fetchSubscriptions();
-    fetchPayments();
-  }, []);
+    const fetchSubscriptionData = async () => {
+      if (!token || !isAuthenticated) return;
+      
+      try {
+        const [statusRes, historyRes] = await Promise.all([
+          fetch(`${API_URL}/api/user/subscription/status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`${API_URL}/api/user/payments`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+        ]);
+        
+        if (statusRes.ok) {
+          const data = await statusRes.json();
+          setCurrentTier(data.tier || 'free');
+          setSubscriptionStatus(data.status || 'active');
+          setSubscriptionExpiresAt(data.expiresAt);
+        }
+        
+        if (historyRes.ok) {
+          const data = await historyRes.json();
+          setPaymentHistory(data.payments || []);
+        }
+      } catch (err) {
+        console.error('Fetch subscription error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSubscriptionData();
+  }, [token, isAuthenticated]);
 
-  const fetchSubscriptions = async () => {
+  // Get tier display name
+  const getTierDisplayName = (tier: string) => {
+    switch (tier) {
+      case 'basic': return 'BASIC VIBES';
+      case 'premium': return 'PREMIUM VIBES';
+      case 'gold': return 'GOLDEN VIBES';
+      default: return 'FREE VIBES';
+    }
+  };
+
+  // Get badge color for current tier
+  const getBadgeStyle = (tier: string) => {
+    switch (tier) {
+      case 'basic': return { color: 'text-amber-500', bg: 'bg-amber-500/10' };
+      case 'premium': return { color: 'text-gray-400', bg: 'bg-gray-500/10' };
+      case 'gold': return { color: 'text-yellow-500', bg: 'bg-yellow-500/10' };
+      default: return { color: 'text-gray-500', bg: 'bg-gray-500/10' };
+    }
+  };
+
+  // Upgrade to a plan
+  const handleUpgrade = async (planId: string) => {
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    
+    setUpgrading(planId);
+    setError(null);
+    
     try {
-      const res = await fetch("/api/vibes/subscriptions");
-      const data = await res.json();
-      setSubscriptions(data.subscriptions || []);
+      const response = await fetch(`${API_URL}/api/subscribe/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ planId })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.payfastUrl) {
+        // Redirect to PayFast
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = data.payfastUrl;
+        
+        Object.entries(data.formData).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = String(value);
+          form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+      } else {
+        setError(data.error || 'Failed to initiate upgrade');
+      }
     } catch (err) {
-      console.error(err);
+      setError('Network error. Please try again.');
     } finally {
-      setLoading(false);
+      setUpgrading(null);
     }
   };
 
-  const fetchPayments = async () => {
+  // Cancel subscription
+  const handleCancel = async () => {
+    if (!token) return;
+    
+    setCancelling(true);
+    setError(null);
+    
     try {
-      const res = await fetch("/api/vibes/payments");
-      const data = await res.json();
-      setPayments(data.payments || []);
+      const response = await fetch(`${API_URL}/api/subscribe/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        setSuccess('Your subscription has been cancelled. You will retain access until the end of your billing period.');
+        setShowCancelModal(false);
+        // Refresh subscription data
+        const statusRes = await fetch(`${API_URL}/api/user/subscription/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (statusRes.ok) {
+          const data = await statusRes.json();
+          setCurrentTier(data.tier || 'free');
+          setSubscriptionStatus(data.status || 'active');
+          setSubscriptionExpiresAt(data.expiresAt);
+        }
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to cancel subscription');
+      }
     } catch (err) {
-      console.error(err);
+      setError('Network error. Please try again.');
+    } finally {
+      setCancelling(false);
     }
   };
 
-  const cancelSubscription = async (id: string) => {
-    await fetch(`/api/vibes/subscriptions/${id}`, {
-      method: "DELETE",
-    });
-    fetchSubscriptions();
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-ZA');
   };
 
-  const changeTier = async (id: string, tier: string) => {
-    await fetch(`/api/vibes/subscriptions/${id}/tier`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tier }),
-    });
-    fetchSubscriptions();
+  const formatCurrency = (cents: number) => {
+    return `R${(cents / 100).toFixed(2)}`;
   };
 
-  const tierColors: Record<string, string> = {
-    basic: "text-blue-400",
-    premium: "text-purple-400",
-    gold: "text-gold",
-  };
-
-  if (loading)
+  if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-gold animate-pulse">Loading...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="text-center">
+          <Crown className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Sign in to manage subscriptions</h2>
+          <p className="text-gray-400">Please log in to view and manage your subscription.</p>
+          <Link href="/login" className="mt-4 inline-block text-purple-400 hover:text-purple-300">
+            Go to Login
+          </Link>
+        </div>
       </div>
     );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+      </div>
+    );
+  }
+
+  const badgeStyle = getBadgeStyle(currentTier);
 
   return (
-    <div className="min-h-screen bg-black pt-24 pb-12 px-4">
-      <div className="container mx-auto max-w-2xl">
-        <h1 className="text-3xl font-bold text-gold mb-6">Subscriptions</h1>
+    <div className="min-h-screen bg-black py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold text-white mb-2">Subscription Management</h1>
+        <p className="text-gray-400 mb-8">Manage your VIBES subscription and billing</p>
 
-        {/* Consumer Rights Notice (CPA cooling-off) */}
-        <div className="mb-6 p-4 bg-gold/5 border border-gold/30 rounded-lg">
-          <div className="flex items-start gap-3">
-            <Clock className="text-gold mt-1" size={18} />
+        {/* Current Plan Card */}
+        <div className="bg-gray-900 rounded-2xl p-6 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h4 className="text-gold text-sm font-semibold mb-1">Cancel within 7 days for a full refund (CPA)</h4>
-              <p className="text-white/50 text-xs mb-2">
-                Under the South African Consumer Protection Act, you may cancel any subscription within 7 days of purchase for a full refund — no penalty, no questions asked.
-              </p>
-              <div className="flex items-center gap-4 text-xs text-white/40">
-                <span className="flex items-center gap-1"><RefreshCw size={10} className="text-gold" /> Refunds in 30 days</span>
-                <span className="flex items-center gap-1"><Mail size={10} className="text-gold" /> support@steeze.com</span>
+              <p className="text-gray-400 text-sm">Current Plan</p>
+              <div className="flex items-center gap-2 mt-1">
+                <h2 className="text-2xl font-bold text-white">{getTierDisplayName(currentTier)}</h2>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${badgeStyle.bg} ${badgeStyle.color}`}>
+                  {subscriptionStatus === 'active' ? 'Active' : subscriptionStatus}
+                </span>
               </div>
+              {subscriptionExpiresAt && subscriptionStatus !== 'active' && (
+                <p className="text-gray-500 text-sm mt-2">
+                  Valid until {formatDate(subscriptionExpiresAt)}
+                </p>
+              )}
             </div>
+            {currentTier !== 'free' && subscriptionStatus === 'active' && (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                disabled={cancelling}
+                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition disabled:opacity-50"
+              >
+                Cancel Subscription
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={() => setShowPayments(false)}
-            className={`px-4 py-2 rounded-full transition-all ${
-              !showPayments ? "bg-gold text-black" : "bg-white/10 text-white/70 hover:bg-white/20"
-            }`}
-          >
-            Active Subscriptions
-          </button>
-          <button
-            onClick={() => setShowPayments(true)}
-            className={`px-4 py-2 rounded-full transition-all ${
-              showPayments ? "bg-gold text-black" : "bg-white/10 text-white/70 hover:bg-white/20"
-            }`}
-          >
-            Payment History
-          </button>
-        </div>
-
-        {!showPayments ? (
-          subscriptions.length === 0 ? (
-            <div className="glass-card p-8 text-center">
-              <Crown className="text-gold mx-auto mb-4" size={48} />
-              <p className="text-white/70 mb-4">You don't have any active subscriptions.</p>
-              <Link href="/explore" className="inline-block px-6 py-2 bg-gold text-black rounded-full">
-                Discover Creators
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {subscriptions.map((sub) => (
-                <div key={sub.id} className="glass-card p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                      <Image
-                        src={sub.creator?.profilePicUrl || "/icons/steeze-icon-square.png"}
-                        alt=""
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-semibold">
-                        {sub.creator?.artistName || sub.creator?.username}
-                      </h3>
-                      <p className="text-white/50 text-sm">
-                        @{sub.creator?.username || sub.creator?.email}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center mb-4 p-3 bg-white/5 rounded-lg">
-                    <div>
-                      <span className="text-white/50 text-sm">Tier</span>
-                      <p className={`font-semibold uppercase ${tierColors[sub.tier] || "text-white"}`}>
-                        {sub.tier}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-white/50 text-sm">Price</span>
-                      <p className="text-white font-semibold">R{sub.price}/month</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-white/50 text-sm">Since</span>
-                      <p className="text-white text-sm">
-                        {new Date(sub.startDate || sub.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <div className="relative flex-1">
-                      <select
-                        value={sub.tier}
-                        onChange={(e) => changeTier(sub.id, e.target.value)}
-                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold text-sm appearance-none cursor-pointer"
-                      >
-                        <option value="basic">Basic (R50/mo)</option>
-                        <option value="premium">Premium (R99/mo)</option>
-                        <option value="gold">Gold (R199/mo)</option>
-                      </select>
-                      <ChevronDown
-                        size={14}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
-                      />
-                    </div>
-                    <button
-                      onClick={() => cancelSubscription(sub.id)}
-                      className="px-4 py-2 bg-red-500/20 text-red-400 rounded-full text-sm flex items-center gap-1 hover:bg-red-500/30 transition-colors"
-                    >
-                      <XCircle size={14} /> Cancel
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        ) : payments.length === 0 ? (
-          <div className="glass-card p-8 text-center">
-            <CreditCard className="mx-auto mb-4 text-white/40" size={48} />
-            <p className="text-white/50">No payment history yet.</p>
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="mb-6 p-3 bg-red-500/10 border border-red-500 rounded-lg">
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
-        ) : (
-          <div className="glass-card p-4">
-            <div className="divide-y divide-white/10">
-              {payments.map((payment) => (
-                <div
-                  key={payment.id}
-                  className="flex justify-between items-center py-3"
+        )}
+        {success && (
+          <div className="mb-6 p-3 bg-green-500/10 border border-green-500 rounded-lg">
+            <p className="text-green-400 text-sm">{success}</p>
+          </div>
+        )}
+
+        {/* Plan Comparison Cards */}
+        <h2 className="text-xl font-semibold text-white mb-4">Available Plans</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          {PLANS.map((plan) => {
+            const isCurrentPlan = currentTier === plan.id;
+            const isUpgrading = upgrading === plan.id;
+            
+            return (
+              <div
+                key={plan.id}
+                className={`bg-gray-900 rounded-xl p-6 transition-all ${
+                  plan.popular ? 'border-2 border-amber-500 relative' : ''
+                }`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <span className="bg-amber-500 text-black text-xs px-3 py-1 rounded-full font-semibold">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
+                <h3 className="text-lg font-bold text-white mb-1">{plan.name}</h3>
+                <p className="text-2xl font-bold text-white mt-2">{plan.priceDisplay}</p>
+                {plan.price > 0 && (
+                  <p className="text-gray-500 text-sm">per month</p>
+                )}
+                <ul className="mt-4 space-y-2">
+                  {plan.features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-gray-400">
+                      <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => handleUpgrade(plan.id)}
+                  disabled={isCurrentPlan || isUpgrading}
+                  className={`w-full mt-6 py-2 rounded-lg text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed ${plan.buttonColor}`}
                 >
-                  <div>
-                    <p className="text-white font-medium">
-                      {payment.creator?.artistName || payment.creator?.username || "Creator"}
-                    </p>
-                    <p className="text-white/40 text-xs">
-                      {new Date(payment.createdAt).toLocaleDateString()}
-                      {" · "}
-                      <span className="capitalize">{payment.status}</span>
-                    </p>
+                  {isCurrentPlan ? (
+                    'Current Plan'
+                  ) : isUpgrading ? (
+                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                  ) : (
+                    `Upgrade to ${plan.name.split(' ')[0]}`
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Payment History */}
+        {paymentHistory.length > 0 && (
+          <div className="bg-gray-900 rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-gray-800">
+              <h2 className="text-lg font-semibold text-white">Payment History</h2>
+              <p className="text-gray-400 text-sm">Your recent transactions</p>
+            </div>
+            <div className="divide-y divide-gray-800">
+              {paymentHistory.map((payment) => (
+                <div key={payment.id} className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="w-5 h-5 text-gray-500" />
+                    <div>
+                      <p className="text-white font-medium">{formatCurrency(payment.amount)}</p>
+                      <p className="text-gray-500 text-sm">{formatDate(payment.createdAt)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-gold font-semibold">R{payment.amount}</p>
-                    <p className="text-white/40 text-xs capitalize">{payment.tier}</p>
-                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    payment.status === 'completed' 
+                      ? 'bg-green-500/10 text-green-500'
+                      : 'bg-red-500/10 text-red-500'
+                  }`}>
+                    {payment.status}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* FAQ Section */}
+        <div className="mt-8 bg-gray-900 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Frequently Asked Questions</h2>
+          <div className="space-y-4">
+            <div>
+              <p className="text-white font-medium">Can I cancel anytime?</p>
+              <p className="text-gray-400 text-sm">Yes, you can cancel your subscription at any time. You will retain access until the end of your billing period.</p>
+            </div>
+            <div>
+              <p className="text-white font-medium">What happens if my payment fails?</p>
+              <p className="text-gray-400 text-sm">We will retry automatically on day 1, 3, and 7. You have a 7-day grace period to update your payment method before downgrading to FREE VIBES.</p>
+            </div>
+            <div>
+              <p className="text-white font-medium">Can I change my plan?</p>
+              <p className="text-gray-400 text-sm">Yes, you can upgrade or downgrade anytime. Changes take effect immediately.</p>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Cancel Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-500" />
+              <h2 className="text-xl font-bold text-white">Cancel Subscription</h2>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Are you sure you want to cancel your {getTierDisplayName(currentTier)} subscription?
+            </p>
+            <p className="text-gray-500 text-sm mb-6">
+              You will lose access to premium features at the end of your billing period.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white transition"
+              >
+                Keep Subscription
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white transition disabled:opacity-50"
+              >
+                {cancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes, Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

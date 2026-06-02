@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard, Users, FileText, CheckSquare, DollarSign,
@@ -33,11 +33,21 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authorized, setAuthorized] = useState(false);
 
+  const isLoginPage = pathname === "/admin/login";
+
   useEffect(() => {
+    // Skip auth check for login page
+    if (isLoginPage) {
+      setLoading(false);
+      setAuthorized(true);
+      return;
+    }
+
     const token = localStorage.getItem("token");
     const userStr = localStorage.getItem("user");
 
@@ -60,6 +70,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     setLoading(false);
   }, [router]);
+
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   if (loading || !authorized) {
     return (

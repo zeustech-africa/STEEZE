@@ -3,9 +3,16 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import CookieConsent from "@/components/CookieConsent";
 import SkipToContent from "@/components/SkipToContent";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { NetworkStatus } from "@/components/NetworkStatus";
 import { KeyboardShortcutsProvider } from "@/components/KeyboardShortcutsProvider";
 import PWAInstallButton from "@/components/PWAInstallButton";
+import UploadQueue from "@/components/UploadQueue";
 import EmailVerificationBanner from "@/components/EmailVerificationBanner";
+import { QueryProvider } from "./providers/QueryProvider";
+import { Analytics } from "@vercel/analytics/react";
+import { StoreInitializer } from "@/components/StoreInitializer";
+import { JustVibesTimer } from "@/components/JustVibesTimer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -71,15 +78,27 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <KeyboardShortcutsProvider />
-        <div aria-live="polite" className="sr-only" role="status" id="live-region"></div>
-        <SkipToContent />
-        <EmailVerificationBanner />
-        <main id="main-content" role="main" tabIndex={-1} className="focus:outline-none">
-          {children}
-        </main>
-        <PWAInstallButton />
-        <CookieConsent />
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-purple-600 focus:text-white focus:rounded-lg">
+          skip to main content
+        </a>
+        <ErrorBoundary>
+          <StoreInitializer />
+          <KeyboardShortcutsProvider />
+          <div aria-live="polite" className="sr-only" role="status" id="live-region"></div>
+          <SkipToContent />
+          <EmailVerificationBanner />
+          <QueryProvider>
+            <main id="main-content" role="main" tabIndex={-1} className="focus:outline-none">
+              {children}
+            </main>
+          </QueryProvider>
+          <Analytics />
+          <PWAInstallButton />
+          <CookieConsent />
+          <UploadQueue />
+          <JustVibesTimer />
+          <NetworkStatus />
+        </ErrorBoundary>
       </body>
     </html>
   );

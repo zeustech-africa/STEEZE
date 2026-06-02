@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Palette, Camera } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 
 export default function EditCreatorProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -11,6 +13,7 @@ export default function EditCreatorProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPic, setUploadingPic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -27,6 +30,7 @@ export default function EditCreatorProfilePage() {
     subscriptionPrice: 0,
     genre: '',
     profilePhotoUrl: '',
+    profilePicUrl: '',
     coverPhotoUrl: '',
   });
 
@@ -35,21 +39,22 @@ export default function EditCreatorProfilePage() {
       try {
         const data = await api.getUser(username);
         setProfile(data);
-        setForm({
-          displayName: data.displayName || data.artistName || '',
-          bio: data.bio || '',
-          website: data.website || '',
-          location: data.location || '',
-          instagram: data.instagram || '',
-          twitter: data.twitter || '',
-          youtube: data.youtube || '',
-          spotify: data.spotify || '',
-          tiktok: data.tiktok || '',
-          subscriptionPrice: data.subscriptionPrice || 0,
-          genre: data.genre || '',
-          profilePhotoUrl: data.profilePhotoUrl || '',
-          coverPhotoUrl: data.coverPhotoUrl || '',
-        });
+          setForm({
+            displayName: data.displayName || data.artistName || '',
+            bio: data.bio || '',
+            website: data.website || '',
+            location: data.location || '',
+            instagram: data.instagram || '',
+            twitter: data.twitter || '',
+            youtube: data.youtube || '',
+            spotify: data.spotify || '',
+            tiktok: data.tiktok || '',
+            subscriptionPrice: data.subscriptionPrice || 0,
+            genre: data.genre || '',
+            profilePhotoUrl: data.profilePhotoUrl || data.profilePicUrl || '',
+            profilePicUrl: data.profilePicUrl || data.profilePhotoUrl || '',
+            coverPhotoUrl: data.coverPhotoUrl || '',
+          });
       } catch (err: any) {
         setError(err?.message || 'Failed to load profile');
       } finally {
@@ -65,6 +70,42 @@ export default function EditCreatorProfilePage() {
       ...prev,
       [name]: name === 'subscriptionPrice' ? Number(value) : value,
     }));
+  };
+
+  const handleProfilePicUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Profile picture must be less than 2MB');
+      return;
+    }
+
+    setUploadingPic(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('profilePic', file);
+
+      const result = await api.uploadProfilePicture(formData);
+
+      if (result.success && result.profilePicUrl) {
+        setForm((prev) => ({
+          ...prev,
+          profilePicUrl: result.profilePicUrl,
+          profilePhotoUrl: result.profilePicUrl,
+        }));
+        setSuccessMsg('Profile picture updated!');
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setError(result.error || 'Failed to upload profile picture');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to upload profile picture');
+    } finally {
+      setUploadingPic(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,6 +177,18 @@ export default function EditCreatorProfilePage() {
             {error}
           </div>
         )}
+
+        {/* Template Selector */}
+        <div className="mb-8">
+          <Link
+            href={`/creator/${username}/edit/templates`}
+            className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all"
+          >
+            <Palette size={18} className="text-gold" />
+            <span className="text-white">Website Templates</span>
+            <span className="ml-auto text-white/30 text-xs">Change look</span>
+          </Link>
+        </div>
 
         <form onSubmit={handleSubmit} className="glass-card p-8 space-y-6">
           {/* Display Name */}
@@ -297,17 +350,54 @@ export default function EditCreatorProfilePage() {
             </div>
           </div>
 
-          {/* Profile Photo URL */}
+          {/* Profile Picture Upload */}
           <div>
-            <label className="block text-white text-sm font-medium mb-2">Profile Photo URL</label>
-            <input
-              type="url"
-              name="profilePhotoUrl"
-              value={form.profilePhotoUrl}
-              onChange={handleChange}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-gold/50 transition-colors"
-              placeholder="https://..."
-            />
+            <label className="block text-white text-sm font-medium mb-3">Profile Picture</label>
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-full bg-white/5 border-[3px] border-gold overflow-hidden flex-shrink-0">
+                {form.profilePicUrl ? (
+                  <Image
+                    src={form.profilePicUrl}
+                    alt="Profile"
+                    width={80}
+                    height={80}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-gold">
+                    {form.displayName?.charAt(0) || profile?.artistName?.charAt(0) || "?"}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('editProfilePic')?.click()}
+                  disabled={uploadingPic}
+                  className="flex items-center gap-2 px-4 py-2 bg-gold/20 text-gold rounded-lg text-sm hover:bg-gold/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploadingPic ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={16} />
+                      Change Picture
+                    </>
+                  )}
+                </button>
+                <p className="text-white/30 text-xs">JPG, PNG, WEBP. Max 2MB.</p>
+              </div>
+              <input
+                id="editProfilePic"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleProfilePicUpdate}
+              />
+            </div>
           </div>
 
           {/* Cover Photo URL */}

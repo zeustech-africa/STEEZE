@@ -3,19 +3,43 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MessageCircle, Bookmark, Repeat, Play, Sparkles } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Repeat, Play, Sparkles, RefreshCw } from "lucide-react";
 
 export default function ForYouFeedPage() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  const fetchPosts = () => {
     fetch("/api/vibes/feed/for-you")
       .then((r) => r.json())
       .then((d) => setPosts(d.posts || []))
       .catch((e) => console.error(e))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchPosts();
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const token = localStorage.getItem("token");
+      await fetch(`${API_URL}/api/feed/refresh`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error("Refresh error:", error);
+    }
+    fetchPosts();
+  };
 
   if (loading)
     return (
@@ -27,9 +51,19 @@ export default function ForYouFeedPage() {
   return (
     <div className="min-h-screen bg-black pt-20 pb-12 px-4">
       <div className="container mx-auto max-w-2xl">
-        <div className="flex items-center gap-2 mb-6">
-          <Sparkles className="text-gold" size={24} />
-          <h1 className="text-2xl font-bold text-gold">For You</h1>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <Sparkles className="text-gold" size={24} />
+            <h1 className="text-2xl font-bold text-gold">For You</h1>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-all disabled:opacity-50"
+            aria-label="Refresh feed"
+          >
+            <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
+          </button>
         </div>
         {posts.length === 0 ? (
           <div className="text-center py-12">

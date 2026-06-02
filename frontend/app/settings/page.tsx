@@ -1,17 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FileArchive, FileText, Shield, CreditCard, Users, ChevronRight, ArrowLeft, Mail, Smartphone, Monitor } from "lucide-react";
+import { FileArchive, FileText, Shield, CreditCard, Users, ChevronRight, ArrowLeft, Mail, Smartphone, Monitor, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import BottomNav from "@/components/layout/BottomNav";
 
 const settingsLinks = [
   {
+    href: "/settings/profile",
+    icon: User,
+    label: "Edit Profile",
+    description: "Update your profile picture, bio, and personal information",
+    highlight: true,
+  },
+  {
     href: "/settings/data-export",
     icon: FileArchive,
     label: "Data & Privacy",
     description: "Download your data or delete your account",
-    highlight: true,
   },
   {
     href: "/settings/privacy",

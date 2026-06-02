@@ -4,10 +4,13 @@ import { useState } from "react";
 import Image from "next/image";
 import { X, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import ReportButton from "../ReportButton";
 
 interface GalleryPhoto {
+  id: string;
   url: string;
   story?: string;
+  userType?: string;
 }
 
 interface PhotoGalleryProps {
@@ -85,6 +88,15 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
                 sizes="(max-width: 768px) 50vw, 25vw"
                 className="object-cover transition-transform duration-700 group-hover:scale-110"
               />
+              {/* ZLS badge overlay */}
+              {photo.userType === 'zls_artist' && (
+                <div className="absolute top-2 right-2 z-10">
+                  <div className="px-1.5 py-0.5 bg-gold/80 text-black text-xs font-bold rounded">
+                    ZLS
+                  </div>
+                </div>
+              )}
+
               {/* Hover overlay with story */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-center p-4">
                 {photo.story && (
@@ -92,6 +104,14 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
                     {photo.story}
                   </p>
                 )}
+                <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-all" onClick={(e) => e.stopPropagation()}>
+                  <ReportButton
+                    targetType="post"
+                    targetId={photo.id}
+                    targetTitle={photo.story || "Photo"}
+                    variant="icon"
+                  />
+                </div>
               </div>
             </motion.div>
           ))}

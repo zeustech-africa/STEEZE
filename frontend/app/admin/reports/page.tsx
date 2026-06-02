@@ -1,171 +1,310 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Flag, CheckCircle, XCircle, User, FileText, MessageSquare, Eye, Ban } from "lucide-react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Flag, Eye, CheckCircle, XCircle, Loader2, AlertTriangle, X } from "lucide-react";
 
-interface ReportData {
+interface Report {
   id: string;
-  reporterId: string;
-  reporter?: { username: string; email: string };
-  targetId: string;
   targetType: string;
+  targetId: string;
   reason: string;
-  description: string;
+  customReason?: string;
   status: string;
   createdAt: string;
+  reporter: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
+  targetContent?: any;
 }
 
-const ReportsPage = () => {
-  const [reports, setReports] = useState<ReportData[]>([]);
+export default function AdminReportsPage() {
+  const router = useRouter();
+  const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [stats, setStats] = useState<any>(null);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [filter, setFilter] = useState("pending");
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  useEffect(() => {
+    checkAdminAuth();
+    fetchReports();
+    fetchStats();
+  }, [filter]);
+
+  const checkAdminAuth = async () => {
+    const token = localStorage.getItem("token");
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    if (!token || user.email !== "admin@steeze.com") {
+      router.push("/admin/login");
+    }
+  };
 
   const fetchReports = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/admin/reports", {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await fetch(`${API_URL}/api/admin/reports?status=${filter}`, {
+        headers: { "Authorization": `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (data.success) setReports(data.reports || []);
-    } catch (err) {
-      console.error("Failed to fetch reports:", err);
+      const data = await response.json();
+      if (response.ok) {
+        setReports(data.reports || []);
+      }
+    } catch (error) {
+      console.error("Fetch reports error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchReports(); }, []);
-
-  const resolveReport = async (id: string, action: string) => {
-    setActionLoading(id);
+  const fetchStats = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/admin/reports/${id}/resolve`, {
-        method: "POST",
+      const response = await fetch(`${API_URL}/api/admin/reports/stats`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStats(data.stats);
+      }
+    } catch (error) {
+      console.error("Fetch stats error:", error);
+    }
+  };
+
+  const handleUpdateStatus = async (reportId: string, status: string, action?: string) => {
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_URL}/api/admin/reports/${reportId}`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ status, action })
       });
-      const data = await res.json();
-      if (data.success) fetchReports();
-    } catch (err) {
-      console.error("Failed to resolve report:", err);
+
+      if (response.ok) {
+        fetchReports();
+        fetchStats();
+        setSelectedReport(null);
+      }
+    } catch (error) {
+      console.error("Update report error:", error);
     } finally {
-      setActionLoading(null);
+      setActionLoading(false);
     }
   };
 
-  const getTargetIcon = (type: string) => {
-    switch (type) {
-      case "user": return <User size={16} />;
-      case "post": return <FileText size={16} />;
-      case "comment": return <MessageSquare size={16} />;
-      default: return <Flag size={16} />;
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending": return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">Pending</span>;
+      case "reviewing": return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">Reviewing</span>;
+      case "resolved": return <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Resolved</span>;
+      case "dismissed": return <span className="px-2 py-1 bg-gray-500/20 text-gray-400 text-xs rounded-full">Dismissed</span>;
+      default: return null;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 size={32} className="text-gold animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <Flag className="text-red-400" size={28} /> Reported Content Queue
-        </h1>
-        <p className="text-white/50 mt-1">{reports.length} pending reports</p>
-      </div>
+    <div className="min-h-screen bg-black">
+      <div className="container mx-auto px-6 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Content Reports</h1>
+            <p className="text-white/50 text-sm">Manage reported content from users</p>
+          </div>
+          <Link href="/admin" className="text-gray-400 hover:text-gold transition-colors">
+            ← Back to Dashboard
+          </Link>
+        </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="glass-card p-4 animate-pulse">
-              <div className="h-4 bg-white/10 rounded w-1/4 mb-2" />
-              <div className="h-3 bg-white/5 rounded w-2/3" />
+        {/* Stats Cards */}
+        {stats && (
+          <div className="grid grid-cols-4 gap-4 mb-8">
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+              <div className="text-2xl font-bold text-yellow-400">{stats.pending}</div>
+              <div className="text-white/50 text-sm">Pending</div>
             </div>
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+              <div className="text-2xl font-bold text-blue-400">{stats.reviewing}</div>
+              <div className="text-white/50 text-sm">Reviewing</div>
+            </div>
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+              <div className="text-2xl font-bold text-green-400">{stats.resolved}</div>
+              <div className="text-white/50 text-sm">Resolved</div>
+            </div>
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+              <div className="text-2xl font-bold text-gray-400">{stats.dismissed}</div>
+              <div className="text-white/50 text-sm">Dismissed</div>
+            </div>
+          </div>
+        )}
+
+        {/* Filter Tabs */}
+        <div className="flex gap-2 mb-6 border-b border-white/10">
+          {["pending", "reviewing", "resolved", "dismissed"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={`px-4 py-2 text-sm font-medium transition-all ${
+                filter === tab
+                  ? "text-gold border-b-2 border-gold"
+                  : "text-white/50 hover:text-white"
+              }`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {stats && stats[tab] > 0 && ` (${stats[tab]})`}
+            </button>
           ))}
         </div>
-      ) : reports.length === 0 ? (
-        <div className="glass-card p-12 text-center rounded-xl">
-          <CheckCircle className="mx-auto text-green-400 mb-4" size={48} />
-          <p className="text-white/60 text-lg">All clear! No pending reports.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {reports.map((report) => (
-            <div key={report.id} className="glass-card p-5 rounded-xl border border-white/10 hover:border-red-500/20 transition">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
-                    {getTargetIcon(report.targetType)}
+
+        {/* Reports List */}
+        <div className="space-y-4">
+          {reports.length === 0 ? (
+            <div className="text-center py-12 text-white/40">
+              <Flag size={48} className="mx-auto mb-4 text-white/20" />
+              No reports found
+            </div>
+          ) : (
+            reports.map((report) => (
+              <div
+                key={report.id}
+                className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-gold/30 transition-all"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Flag size={16} className="text-red-400" />
+                      <span className="text-white font-medium">Report #{report.id.slice(0, 8)}</span>
+                      {getStatusBadge(report.status)}
+                    </div>
+                    <p className="text-white/60 text-sm mb-1">
+                      <strong className="text-white">Type:</strong> {report.targetType}
+                    </p>
+                    <p className="text-white/60 text-sm mb-1">
+                      <strong className="text-white">Reason:</strong> {report.reason}
+                      {report.customReason && ` - ${report.customReason}`}
+                    </p>
+                    <p className="text-white/60 text-sm">
+                      <strong className="text-white">Reported by:</strong> {report.reporter?.fullName || "Unknown"}
+                    </p>
+                    <p className="text-white/40 text-xs mt-2">
+                      {new Date(report.createdAt).toLocaleString()}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-white font-medium capitalize">
-                      {report.targetType}: {report.targetId.slice(0, 8)}...
-                    </p>
-                    <p className="text-white/40 text-xs">
-                      Reported by {report.reporter?.username || "unknown"} · {new Date(report.createdAt).toLocaleString()}
-                    </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedReport(report)}
+                      className="px-3 py-1.5 bg-white/10 text-white rounded-lg text-sm hover:bg-white/20 transition-all"
+                    >
+                      View Details
+                    </button>
+                    <button
+                      onClick={() => handleUpdateStatus(report.id, "dismissed")}
+                      className="px-3 py-1.5 bg-gray-600/20 text-gray-400 rounded-lg text-sm hover:bg-gray-600/30 transition-all"
+                    >
+                      Dismiss
+                    </button>
+                    <button
+                      onClick={() => handleUpdateStatus(report.id, "resolved", "delete_content")}
+                      className="px-3 py-1.5 bg-red-600/20 text-red-400 rounded-lg text-sm hover:bg-red-600/30 transition-all"
+                    >
+                      Delete & Resolve
+                    </button>
                   </div>
                 </div>
-                <span className="px-2 py-1 rounded-full text-xs bg-yellow-500/20 text-yellow-400">
-                  Pending
-                </span>
               </div>
+            ))
+          )}
+        </div>
+      </div>
 
-              <div className="bg-white/5 rounded-lg p-3 mb-3">
-                <p className="text-white/80 text-sm font-medium">{report.reason}</p>
-                {report.description && (
-                  <p className="text-white/50 text-sm mt-1">{report.description}</p>
-                )}
-              </div>
+      {/* Report Details Modal */}
+      {selectedReport && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center sticky top-0 bg-gray-900">
+              <h2 className="text-white text-xl font-bold">Report Details</h2>
+              <button onClick={() => setSelectedReport(null)} className="text-white/50 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Report Information</h3>
+                  <p className="text-white/60 text-sm">ID: {selectedReport.id}</p>
+                  <p className="text-white/60 text-sm">Type: {selectedReport.targetType}</p>
+                  <p className="text-white/60 text-sm">Reason: {selectedReport.reason}</p>
+                  {selectedReport.customReason && (
+                    <p className="text-white/60 text-sm">Custom Reason: {selectedReport.customReason}</p>
+                  )}
+                  <p className="text-white/60 text-sm">Status: {selectedReport.status}</p>
+                  <p className="text-white/60 text-sm">Reported at: {new Date(selectedReport.createdAt).toLocaleString()}</p>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => resolveReport(report.id, "dismiss")}
-                  disabled={actionLoading === report.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-xs transition disabled:opacity-50"
-                >
-                  <XCircle size={14} /> Dismiss
-                </button>
-                <button
-                  onClick={() => resolveReport(report.id, "delete_post")}
-                  disabled={actionLoading === report.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs transition disabled:opacity-50"
-                >
-                  <Trash2Icon size={14} /> Delete Content
-                </button>
-                <button
-                  onClick={() => resolveReport(report.id, "warn_user")}
-                  disabled={actionLoading === report.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-xs transition disabled:opacity-50"
-                >
-                  <Eye size={14} /> Warn User
-                </button>
-                <button
-                  onClick={() => resolveReport(report.id, "ban_user")}
-                  disabled={actionLoading === report.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs transition disabled:opacity-50"
-                >
-                  <Ban size={14} /> Ban User
-                </button>
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Reported Content</h3>
+                  <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    {selectedReport.targetContent ? (
+                      <pre className="text-white/60 text-sm whitespace-pre-wrap">
+                        {JSON.stringify(selectedReport.targetContent, null, 2)}
+                      </pre>
+                    ) : (
+                      <p className="text-white/40 text-sm">Content not found (may have been deleted)</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Reporter</h3>
+                  <p className="text-white/60 text-sm">Name: {selectedReport.reporter?.fullName}</p>
+                  <p className="text-white/60 text-sm">Email: {selectedReport.reporter?.email}</p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      handleUpdateStatus(selectedReport.id, "dismissed");
+                      setSelectedReport(null);
+                    }}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all disabled:opacity-50"
+                  >
+                    Dismiss Report
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleUpdateStatus(selectedReport.id, "resolved", "delete_content");
+                      setSelectedReport(null);
+                    }}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all disabled:opacity-50"
+                  >
+                    Delete Content & Resolve
+                  </button>
+                </div>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       )}
     </div>
   );
-};
-
-// Little inline Trash2 icon (avoid extra import complexity)
-const Trash2Icon = ({ size }: { size: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6" />
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    <line x1="10" y1="11" x2="10" y2="17" />
-    <line x1="14" y1="11" x2="14" y2="17" />
-  </svg>
-);
-
-export default ReportsPage;
+}

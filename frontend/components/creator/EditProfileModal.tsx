@@ -1,286 +1,335 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import {
-  X,
-  Camera,
-  Save,
-  Globe,
-  Eye,
-  LayoutTemplate,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { X, Upload, Camera, Image as ImageIcon, Loader2 } from "lucide-react";
 
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  creator: any;
+  creator: {
+    id: string;
+    artistName: string;
+    tagline?: string;
+    shortBio?: string;
+    fullBio?: string;
+    profilePicUrl?: string;
+    coverPhotoUrl?: string;
+    coverVideoUrl?: string;
+    socialLinks?: {
+      instagram?: string;
+      tiktok?: string;
+      youtube?: string;
+      spotify?: string;
+      appleMusic?: string;
+      twitter?: string;
+    };
+  };
+  onUpdate: (updatedCreator: any) => void;
 }
 
-const TEMPLATES = ["classic", "premium", "feminine", "muscular", "minimal"];
-
-export default function EditProfileModal({
-  isOpen,
-  onClose,
-  creator,
-}: EditProfileModalProps) {
-  const router = useRouter();
-  const [artistName, setArtistName] = useState(creator.artistName || "");
-  const [tagline, setTagline] = useState(creator.tagline || "");
-  const [bio, setBio] = useState(creator.fullBio || "");
-  const [musicJourney, setMusicJourney] = useState(creator.musicJourney || "");
-  const [category, setCategory] = useState(creator.category || "");
-  const [template, setTemplate] = useState(creator.template || "classic");
-  const [socialLinks, setSocialLinks] = useState({
-    instagram: creator.socialLinks?.instagram || "",
-    twitter: creator.socialLinks?.twitter || "",
-    tiktok: creator.socialLinks?.tiktok || "",
-    youtube: creator.socialLinks?.youtube || "",
-    spotify: creator.socialLinks?.spotify || "",
-    appleMusic: creator.socialLinks?.appleMusic || "",
-    facebook: creator.socialLinks?.facebook || "",
-    website: creator.socialLinks?.website || "",
+export default function EditProfileModal({ isOpen, onClose, creator, onUpdate }: EditProfileModalProps) {
+  const [formData, setFormData] = useState({
+    artistName: "",
+    tagline: "",
+    shortBio: "",
+    fullBio: "",
+    instagram: "",
+    tiktok: "",
+    youtube: "",
+    spotify: "",
+    appleMusic: "",
+    twitter: "",
   });
+  
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
+  const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [coverType, setCoverType] = useState<"image" | "video">("image");
+  
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [success, setSuccess] = useState(false);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  useEffect(() => {
+    if (creator) {
+      setFormData({
+        artistName: creator.artistName || "",
+        tagline: creator.tagline || "",
+        shortBio: creator.shortBio || "",
+        fullBio: creator.fullBio || "",
+        instagram: creator.socialLinks?.instagram || "",
+        tiktok: creator.socialLinks?.tiktok || "",
+        youtube: creator.socialLinks?.youtube || "",
+        spotify: creator.socialLinks?.spotify || "",
+        appleMusic: creator.socialLinks?.appleMusic || "",
+        twitter: creator.socialLinks?.twitter || "",
+      });
+      setProfilePicPreview(creator.profilePicUrl || null);
+      setCoverPreview(creator.coverPhotoUrl || creator.coverVideoUrl || null);
+      if (creator.coverVideoUrl) setCoverType("video");
+    }
+  }, [creator]);
+
+  const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setError("Profile picture must be less than 2MB");
+        return;
+      }
+      setProfilePicFile(file);
+      setProfilePicPreview(URL.createObjectURL(file));
+    }
+  };
 
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setCoverFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => setCoverPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const updateSocial = (key: string, value: string) => {
-    setSocialLinks((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const updateTemplate = async (t: string) => {
-    setTemplate(t);
-    try {
-      await fetch(`/api/creators/${creator.id}/template`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template: t }),
-      });
-    } catch {
-      // non-blocking
-    }
-  };
-
-  const handleSave = async () => {
-    if (!artistName.trim()) {
-      setError("Artist name is required");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    const formData = new FormData();
-    formData.append("artistName", artistName);
-    formData.append("tagline", tagline);
-    formData.append("fullBio", bio);
-    formData.append("musicJourney", musicJourney);
-    formData.append("category", category);
-    formData.append("template", template);
-    formData.append("socialLinks", JSON.stringify(socialLinks));
-    if (coverFile) formData.append("coverImage", coverFile);
-
-    try {
-      const res = await fetch(`/api/creators/${creator.id}/update`, {
-        method: "PUT",
-        body: formData,
-      });
-      if (res.ok) {
-        onClose();
-        window.location.reload();
-      } else {
-        const data = await res.json();
-        setError(data.message || "Failed to save");
+    if (file) {
+      if (file.type.startsWith("video/")) {
+        setCoverType("video");
+      } else if (file.type.startsWith("image/")) {
+        setCoverType("image");
       }
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setSaving(false);
+      setCoverFile(file);
+      setCoverPreview(URL.createObjectURL(file));
     }
   };
 
-  const username = creator.username || creator.artistName || "";
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+
+    try {
+      const token = localStorage.getItem("token");
+      
+      // First, update profile text fields
+      const profileResponse = await fetch(`${API_URL}/api/creators/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          artistName: formData.artistName,
+          tagline: formData.tagline,
+          shortBio: formData.shortBio,
+          fullBio: formData.fullBio,
+          socialLinks: {
+            instagram: formData.instagram,
+            tiktok: formData.tiktok,
+            youtube: formData.youtube,
+            spotify: formData.spotify,
+            appleMusic: formData.appleMusic,
+            twitter: formData.twitter,
+          }
+        })
+      });
+
+      if (!profileResponse.ok) {
+        const errorData = await profileResponse.json();
+        throw new Error(errorData.error || "Failed to update profile");
+      }
+
+      // Upload profile picture if changed
+      if (profilePicFile) {
+        const picFormData = new FormData();
+        picFormData.append("profilePic", profilePicFile);
+        
+        const picResponse = await fetch(`${API_URL}/api/creators/creator/profile-picture`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` },
+          body: picFormData
+        });
+        
+        if (!picResponse.ok) {
+          console.error("Profile picture upload failed");
+        }
+      }
+
+      // Upload cover if changed
+      if (coverFile) {
+        const coverFormData = new FormData();
+        coverFormData.append("cover", coverFile);
+        coverFormData.append("type", coverType);
+        
+        const coverResponse = await fetch(`${API_URL}/api/creators/cover`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` },
+          body: coverFormData
+        });
+        
+        if (!coverResponse.ok) {
+          console.error("Cover upload failed");
+        }
+      }
+
+      // Fetch updated creator data
+      const updatedResponse = await fetch(`${API_URL}/api/creators/${creator.artistName?.toLowerCase().replace(/\s+/g, "")}`);
+      const updatedData = await updatedResponse.json();
+      
+      if (updatedData.success) {
+        onUpdate(updatedData.creator);
+        setSuccess(true);
+        setTimeout(() => {
+          onClose();
+          setSuccess(false);
+        }, 1500);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to update profile");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
-  const socialFields = [
-    { key: "instagram", label: "Instagram", placeholder: "@username" },
-    { key: "twitter", label: "Twitter", placeholder: "@username" },
-    { key: "tiktok", label: "TikTok", placeholder: "@username" },
-    { key: "youtube", label: "YouTube", placeholder: "Channel URL" },
-    { key: "spotify", label: "Spotify", placeholder: "Artist URL" },
-    { key: "appleMusic", label: "Apple Music", placeholder: "Artist URL" },
-    { key: "facebook", label: "Facebook", placeholder: "Page URL" },
-    { key: "website", label: "Website", placeholder: "https://..." },
-  ];
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 border border-white/5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-bold text-gold">Edit Profile</h2>
-              <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
-                <X size={20} />
-              </button>
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-gray-900 p-6 border-b border-white/10 flex justify-between items-center">
+          <h2 className="text-white text-xl font-bold">Edit Profile</h2>
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Profile Picture */}
+          <div>
+            <label className="block text-white/80 text-sm mb-2">Profile Picture</label>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-24 rounded-full bg-white/5 border-2 border-gold overflow-hidden">
+                {profilePicPreview ? (
+                  <img src={profilePicPreview} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gold">
+                    <Camera size={32} />
+                  </div>
+                )}
+              </div>
+              <label className="px-4 py-2 bg-gold/20 text-gold rounded-lg text-sm cursor-pointer hover:bg-gold/30 transition-all">
+                Change Picture
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleProfilePicChange} />
+              </label>
             </div>
+            <p className="text-white/30 text-xs mt-2">JPG, PNG, WEBP. Max 2MB.</p>
+          </div>
 
-            <div className="space-y-4">
-              {/* Feature 18: Preview as Fan */}
-              <button
-                onClick={() => router.push(`/creator/${username}?preview=true`)}
-                className="w-full py-2 border border-gold/30 text-gold rounded-full text-sm hover:bg-gold/10 transition-colors flex items-center justify-center gap-2"
-              >
-                <Eye size={14} />
-                Preview as Fan
-              </button>
-
-              {/* Feature 19: Template Selector */}
-              <div>
-                <label className="text-white/40 text-xs mb-2 flex items-center gap-1.5">
-                  <LayoutTemplate size={12} /> Template Style
-                </label>
-                <div className="grid grid-cols-5 gap-2 mt-1.5">
-                  {TEMPLATES.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => updateTemplate(t)}
-                      className={`p-2 rounded-lg text-xs capitalize transition-all ${
-                        template === t
-                          ? "bg-gold text-black font-semibold"
-                          : "bg-white/5 text-white/60 hover:bg-white/10"
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
+          {/* Cover Image/Video */}
+          <div>
+            <label className="block text-white/80 text-sm mb-2">Cover Image/Video</label>
+            <div className="relative aspect-video bg-white/5 rounded-lg border border-white/20 overflow-hidden">
+              {coverPreview ? (
+                coverType === "video" ? (
+                  <video src={coverPreview} className="w-full h-full object-cover" controls />
+                ) : (
+                  <img src={coverPreview} alt="Cover" className="w-full h-full object-cover" />
+                )
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white/40">
+                  <ImageIcon size={32} />
                 </div>
-              </div>
-
-              {/* Cover image */}
-              <div>
-                <label className="text-white/40 text-xs mb-1 block">Cover Image</label>
-                <div
-                  onClick={() => coverInputRef.current?.click()}
-                  className="w-full h-32 bg-white/[0.03] border border-white/10 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-gold/30 transition-colors overflow-hidden relative"
-                >
-                  {coverPreview ? (
-                    <img src={coverPreview} alt="Cover preview" className="w-full h-full object-cover" />
-                  ) : creator.coverImage ? (
-                    <img src={creator.coverImage} alt="Current cover" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-center text-white/20">
-                      <Camera size={24} className="mx-auto mb-1" />
-                      <span className="text-xs">Upload cover</span>
-                    </div>
-                  )}
-                </div>
-                <input type="file" ref={coverInputRef} accept="image/*" className="hidden" onChange={handleCoverChange} />
-              </div>
-
-              {/* Artist name */}
-              <input
-                type="text"
-                placeholder="Artist Name *"
-                value={artistName}
-                onChange={(e) => setArtistName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-lg text-white placeholder:text-white/20 focus:outline-none focus:border-gold/50 transition-colors text-sm"
-              />
-
-              {/* Tagline */}
-              <input
-                type="text"
-                placeholder="Tagline"
-                value={tagline}
-                onChange={(e) => setTagline(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-lg text-white placeholder:text-white/20 focus:outline-none focus:border-gold/50 transition-colors text-sm"
-              />
-
-              {/* Category */}
-              <input
-                type="text"
-                placeholder="Category (e.g., Hip Hop, Pop, R&B)"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-lg text-white placeholder:text-white/20 focus:outline-none focus:border-gold/50 transition-colors text-sm"
-              />
-
-              {/* Bio */}
-              <textarea
-                placeholder="Full Biography"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-lg text-white placeholder:text-white/20 focus:outline-none focus:border-gold/50 transition-colors text-sm resize-none"
-              />
-
-              {/* Music Journey */}
-              <textarea
-                placeholder="Music Journey"
-                value={musicJourney}
-                onChange={(e) => setMusicJourney(e.target.value)}
-                rows={3}
-                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-lg text-white placeholder:text-white/20 focus:outline-none focus:border-gold/50 transition-colors text-sm resize-none"
-              />
-
-              {/* Social Links */}
-              <div className="border-t border-white/5 pt-4">
-                <p className="text-white/40 text-xs flex items-center gap-1.5 mb-3">
-                  <Globe size={12} /> Social Links
-                </p>
-                <div className="space-y-2">
-                  {socialFields.map((field) => (
-                    <input
-                      key={field.key}
-                      type="text"
-                      placeholder={field.label + " - " + field.placeholder}
-                      value={(socialLinks as any)[field.key]}
-                      onChange={(e) => updateSocial(field.key, e.target.value)}
-                      className="w-full px-4 py-2 bg-white/[0.03] border border-white/10 rounded-lg text-white placeholder:text-white/20 focus:outline-none focus:border-gold/50 transition-colors text-sm"
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Error */}
-              {error && <p className="text-red-400 text-xs">{error}</p>}
-
-              {/* Save */}
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full py-2.5 bg-gradient-to-r from-gold to-gold-dark text-black font-bold rounded-full hover:shadow-lg hover:shadow-gold/20 transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <Save size={16} /> {saving ? "Saving..." : "Save Changes"}
-              </button>
+              )}
+              <label className="absolute bottom-2 right-2 px-3 py-1 bg-black/70 text-white text-sm rounded cursor-pointer hover:bg-gold/70 transition-all">
+                Change Cover
+                <input type="file" accept="image/*,video/*" className="hidden" onChange={handleCoverChange} />
+              </label>
             </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+            <p className="text-white/30 text-xs mt-2">JPG, PNG, WEBP, MP4. Max 10MB.</p>
+          </div>
+
+          {/* Artist Name */}
+          <div>
+            <label className="block text-white/80 text-sm mb-1">Artist Name *</label>
+            <input
+              type="text"
+              value={formData.artistName}
+              onChange={(e) => setFormData({ ...formData, artistName: e.target.value })}
+              required
+              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold"
+            />
+          </div>
+
+          {/* Tagline */}
+          <div>
+            <label className="block text-white/80 text-sm mb-1">Tagline</label>
+            <input
+              type="text"
+              value={formData.tagline}
+              onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
+              placeholder="e.g., Rapper • Singer • Songwriter"
+              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold"
+            />
+          </div>
+
+          {/* Short Bio */}
+          <div>
+            <label className="block text-white/80 text-sm mb-1">Short Bio (1-2 sentences)</label>
+            <input
+              type="text"
+              value={formData.shortBio}
+              onChange={(e) => setFormData({ ...formData, shortBio: e.target.value })}
+              placeholder="Brief description of you"
+              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold"
+            />
+          </div>
+
+          {/* Full Bio */}
+          <div>
+            <label className="block text-white/80 text-sm mb-1">Full Biography</label>
+            <textarea
+              value={formData.fullBio}
+              onChange={(e) => setFormData({ ...formData, fullBio: e.target.value })}
+              rows={5}
+              placeholder="Your full story, achievements, journey..."
+              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold resize-none"
+            />
+          </div>
+
+          {/* Social Links */}
+          <div>
+            <label className="block text-white/80 text-sm mb-3">Social Media Links</label>
+            <div className="space-y-3">
+              <input type="text" value={formData.instagram} onChange={(e) => setFormData({ ...formData, instagram: e.target.value })} placeholder="Instagram URL" className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold" />
+              <input type="text" value={formData.tiktok} onChange={(e) => setFormData({ ...formData, tiktok: e.target.value })} placeholder="TikTok URL" className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold" />
+              <input type="text" value={formData.youtube} onChange={(e) => setFormData({ ...formData, youtube: e.target.value })} placeholder="YouTube URL" className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold" />
+              <input type="text" value={formData.spotify} onChange={(e) => setFormData({ ...formData, spotify: e.target.value })} placeholder="Spotify URL" className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold" />
+              <input type="text" value={formData.appleMusic} onChange={(e) => setFormData({ ...formData, appleMusic: e.target.value })} placeholder="Apple Music URL" className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold" />
+              <input type="text" value={formData.twitter} onChange={(e) => setFormData({ ...formData, twitter: e.target.value })} placeholder="Twitter/X URL" className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold" />
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="p-3 bg-red-500/20 border border-red-500 rounded-lg">
+              <p className="text-red-400 text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {success && (
+            <div className="p-3 bg-green-500/20 border border-green-500 rounded-lg">
+              <p className="text-green-400 text-sm">Profile updated successfully!</p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4 border-t border-white/10">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-white/30 text-white rounded-lg hover:border-gold transition-all">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} className="flex-1 px-4 py-2 bg-gradient-to-r from-gold to-gold-dark text-black font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50">
+              {loading ? <Loader2 size={18} className="animate-spin mx-auto" /> : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePlayerStore } from "@/stores";
 
 interface FloatingMusicPlayerProps {
   song: {
@@ -30,6 +31,10 @@ export default function FloatingMusicPlayer({
   isPlaying,
   setIsPlaying,
 }: FloatingMusicPlayerProps) {
+  const storeSetIsPlaying = usePlayerStore((s) => s.setIsPlaying);
+  const storeVolume = usePlayerStore((s) => s.volume);
+  const storeSetVolume = usePlayerStore((s) => s.setVolume);
+
   const [visible, setVisible] = useState(true);
   const [minimized, setMinimized] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -44,6 +49,7 @@ export default function FloatingMusicPlayer({
     audio.src = song.audioUrl;
     audio.loop = true;
     audio.preload = "metadata";
+    audio.volume = storeVolume / 100;
 
     // Enable background audio on mobile
     // @ts-ignore – setSinkId not fully typed
@@ -53,18 +59,21 @@ export default function FloatingMusicPlayer({
         artist: song.artist || "STEEZE Artist",
         album: song.album || "STEEZE",
       });
-      navigator.mediaSession.setActionHandler("play", () =>
-        setIsPlaying(true),
-      );
-      navigator.mediaSession.setActionHandler("pause", () =>
-        setIsPlaying(false),
-      );
+      navigator.mediaSession.setActionHandler("play", () => {
+        setIsPlaying(true);
+        storeSetIsPlaying(true);
+      });
+      navigator.mediaSession.setActionHandler("pause", () => {
+        setIsPlaying(false);
+        storeSetIsPlaying(false);
+      });
     }
 
     if (isPlaying) {
       audio.play().catch(() => {
         // Autoplay blocked - user gesture needed
         setIsPlaying(false);
+        storeSetIsPlaying(false);
       });
     }
 
@@ -79,7 +88,10 @@ export default function FloatingMusicPlayer({
     const audio = audioRef.current;
     if (!audio) return;
     if (isPlaying) {
-      audio.play().catch(() => setIsPlaying(false));
+      audio.play().catch(() => {
+        setIsPlaying(false);
+        storeSetIsPlaying(false);
+      });
     } else {
       audio.pause();
     }
@@ -92,7 +104,25 @@ export default function FloatingMusicPlayer({
     }
   }, [muted]);
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
+  // Sync volume from store
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = muted ? 0 : storeVolume / 100;
+    }
+  }, [storeVolume, muted]);
+
+  const togglePlay = () => {
+    const newState = !isPlaying;
+    setIsPlaying(newState);
+    storeSetIsPlaying(newState);
+  };
+
+  const toggleMute = () => {
+    const newMuted = !muted;
+    setMuted(newMuted);
+    storeSetVolume(newMuted ? 0 : storeVolume);
+  };
+
   const dismiss = () => setVisible(false);
 
   if (!visible) return null;
@@ -150,7 +180,7 @@ export default function FloatingMusicPlayer({
 
             {/* Mute */}
             <button
-              onClick={() => setMuted(!muted)}
+              onClick={toggleMute}
               className="text-white/40 hover:text-white transition-colors flex-shrink-0"
               aria-label={muted ? "Unmute" : "Mute"}
             >

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Mic, Headphones, Sparkles, Shield, DollarSign, MessageCircle, Video } from "lucide-react";
+import { X, Mic, Headphones, Sparkles, Shield, DollarSign, MessageCircle, Video, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface GetStartedModalProps {
@@ -10,7 +10,7 @@ interface GetStartedModalProps {
 }
 
 export default function GetStartedModal({ isOpen, onClose }: GetStartedModalProps) {
-  const [selected, setSelected] = useState<"creator" | "vibes" | null>(null);
+  const [selected, setSelected] = useState<"creator" | "vibes" | "just-vibes" | null>(null);
 
   // Close on escape key
   useEffect(() => {
@@ -61,11 +61,11 @@ export default function GetStartedModal({ isOpen, onClose }: GetStartedModalProp
                 <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gold to-gold-dark bg-clip-text text-transparent">
                   Choose Your Path
                 </h2>
-                <p className="text-white/60 mt-2">Two ways to experience STEEZE</p>
+                <p className="text-white/60 mt-2">Three ways to experience STEEZE</p>
               </div>
 
               {/* Cards */}
-              <div className="p-6 grid md:grid-cols-2 gap-6">
+              <div className="p-6 grid md:grid-cols-3 gap-6">
                 {/* Creator Card */}
                 <motion.div
                   whileHover={{ scale: 1.02, y: -4 }}
@@ -129,6 +129,37 @@ export default function GetStartedModal({ isOpen, onClose }: GetStartedModalProp
                     <p className="text-xs text-white/40">Free • Basic (R50) • Premium (R99) • Gold (R199)</p>
                   </div>
                 </motion.div>
+
+                {/* Just VIBES Card */}
+                <motion.div
+                  whileHover={{ scale: 1.02, y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer ${
+                    selected === "just-vibes"
+                      ? "border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20"
+                      : "border-white/20 bg-white/5 hover:border-purple-500/50"
+                  }`}
+                  onClick={() => setSelected("just-vibes")}
+                >
+                  {selected === "just-vibes" && (
+                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-purple-500 animate-pulse-slow" />
+                  )}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 rounded-full bg-gradient-to-r from-purple-500 to-purple-700">
+                      <Eye className="text-white" size={24} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white">Just VIBES</h3>
+                  </div>
+                  <ul className="space-y-2 text-white/70 text-sm">
+                    <li className="flex items-center gap-2"><Eye size={14} className="text-purple-400" /> Browse content with limited access</li>
+                    <li className="flex items-center gap-2"><Sparkles size={14} className="text-purple-400" /> 30-second video previews</li>
+                    <li className="flex items-center gap-2"><Headphones size={14} className="text-purple-400" /> 1-hour session limit</li>
+                    <li className="flex items-center gap-2"><Shield size={14} className="text-purple-400" /> No sign-up required</li>
+                  </ul>
+                  <div className="mt-4 p-2 bg-white/5 rounded-lg">
+                    <p className="text-xs text-white/40">Free • No account needed • 1 hour per session</p>
+                  </div>
+                </motion.div>
               </div>
 
               {/* Action Button */}
@@ -137,10 +168,14 @@ export default function GetStartedModal({ isOpen, onClose }: GetStartedModalProp
                   <motion.a
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    href={selected === "creator" ? "/signup/creator" : "/signup/vibes"}
-                    className="px-8 py-3 bg-gradient-to-r from-gold to-gold-dark text-black font-bold rounded-full hover:shadow-lg hover:shadow-gold/30 transition-all"
+                    href={selected === "creator" ? "/signup/creator" : selected === "vibes" ? "/signup/vibes" : "/just-vibes/signup"}
+                    className={`px-8 py-3 font-bold rounded-full hover:shadow-lg transition-all ${
+                      selected === "just-vibes"
+                        ? "bg-gradient-to-r from-purple-500 to-purple-700 text-white hover:shadow-purple-500/30"
+                        : "bg-gradient-to-r from-gold to-gold-dark text-black hover:shadow-gold/30"
+                    }`}
                   >
-                    Join as {selected === "creator" ? "Creator" : "VIBES"} →
+                    Join as {selected === "creator" ? "Creator" : selected === "vibes" ? "VIBES" : "Just VIBES"} →
                   </motion.a>
                 )}
               </div>
@@ -158,7 +193,7 @@ export default function GetStartedModal({ isOpen, onClose }: GetStartedModalProp
                     }}
                     className="text-gold hover:underline"
                   >
-                    Login
+                    ENTER THE VIBES
                   </button>
                 </p>
               </div>

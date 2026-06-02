@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
+import { Camera, ChevronRight } from "lucide-react";
 
 interface Step1ProfileProps {
   data: any;
@@ -38,6 +38,9 @@ export default function Step1Profile({ data, updateData, onNext, markComplete }:
     brandPersonality: data.brandPersonality || "luxury",
   });
 
+  const [profilePic, setProfilePic] = useState<File | null>(data.profilePic || null);
+  const [profilePicPreview, setProfilePicPreview] = useState<string | null>(data.profilePicPreview || null);
+  const [uploadingPic, setUploadingPic] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
@@ -57,12 +60,13 @@ export default function Step1Profile({ data, updateData, onNext, markComplete }:
     if (!formData.shortBio) newErrors.shortBio = "Short bio is required";
     if (!formData.fullBio) newErrors.fullBio = "Full biography is required";
     if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
+    if (!profilePic) newErrors.profilePic = "Profile picture is required";
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(newErrors).length === 0 && !!profilePic;
   };
 
   const handleNext = () => {
-    setTouched({ artistName: true, email: true, password: true, confirmPassword: true, tagline: true, shortBio: true, fullBio: true, phoneNumber: true });
+    setTouched({ artistName: true, email: true, password: true, confirmPassword: true, tagline: true, shortBio: true, fullBio: true, phoneNumber: true, profilePic: true });
     if (validate()) {
       markComplete();
       onNext();
@@ -110,6 +114,51 @@ export default function Step1Profile({ data, updateData, onNext, markComplete }:
             className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold"
             placeholder="e.g., African Giant" />
         </div>
+      </div>
+
+      {/* Profile Picture Upload */}
+      <div className="mb-6">
+        <label className="block text-white/80 text-sm mb-2">
+          Profile Picture <span className="text-gold">*</span>
+        </label>
+        <div 
+          className={`w-32 h-32 rounded-full mx-auto border-2 ${profilePicPreview ? 'border-gold' : 'border-dashed border-white/30'} overflow-hidden cursor-pointer bg-white/5 flex items-center justify-center transition-all hover:border-gold`}
+          onClick={() => document.getElementById('profilePicInput')?.click()}
+        >
+          {profilePicPreview ? (
+            <img src={profilePicPreview} alt="Profile preview" className="w-full h-full object-cover" />
+          ) : (
+            <div className="text-center">
+              <Camera size={24} className="mx-auto text-white/40 mb-1" />
+              <p className="text-white/30 text-xs">Upload</p>
+            </div>
+          )}
+        </div>
+        <input
+          id="profilePicInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              if (file.size > 2 * 1024 * 1024) {
+                alert('File size must be less than 2MB');
+                return;
+              }
+              setUploadingPic(true);
+              const preview = URL.createObjectURL(file);
+              setProfilePicPreview(preview);
+              setProfilePic(file);
+              updateData({ ...formData, profilePic: file, profilePicPreview: preview });
+              setUploadingPic(false);
+            }
+          }}
+        />
+        {errors.profilePic && <p className="text-red-500 text-xs text-center mt-1" role="alert">{errors.profilePic}</p>}
+        <p className="text-white/30 text-xs text-center mt-2">
+          JPG, PNG, or WEBP. Max 2MB. Square image recommended.
+        </p>
       </div>
 
       {/* Contact Information */}
@@ -286,7 +335,7 @@ export default function Step1Profile({ data, updateData, onNext, markComplete }:
 
       {/* Template Selection */}
       <div>
-        <span className="block text-white/80 text-sm mb-2">Preferred Template (can change later)</span>
+        <span className="block text-white/80 text-sm mb-2">STYLE YOUR STEEZE</span>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {templates.map((tpl) => (
             <button key={tpl.value} type="button" onClick={() => setFormData({ ...formData, templatePreference: tpl.value })}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import OptimizedImage from "../OptimizedImage";
 import { Verified, MapPin, CalendarCheck, Link, Share2, VolumeX, Volume2, Crown, Shield } from "lucide-react";
 
 interface HeroSectionProps {
@@ -12,10 +12,13 @@ interface HeroSectionProps {
     tagline?: string;
     coverVideoUrl?: string;
     coverPhotoUrl?: string;
+    profilePicUrl?: string;
+    fullName?: string;
     isVerified: boolean;
     category?: string;
     bio?: string;
     followerCount?: number;
+    followingCount?: number;
     subscriberCount?: number;
     totalLikes?: number;
     createdAt?: string;
@@ -23,9 +26,18 @@ interface HeroSectionProps {
     zlsBadgeEnabled?: boolean;
   };
   isCreator: boolean;
+  onShowFollowers?: () => void;
+  onShowFollowing?: () => void;
 }
 
-export default function HeroSection({ creator, isCreator }: HeroSectionProps) {
+function formatNumber(num: number | undefined): string {
+  if (num == null) return "0";
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+}
+
+export default function HeroSection({ creator, isCreator, onShowFollowers, onShowFollowing }: HeroSectionProps) {
   const hasVideo = !!creator.coverVideoUrl;
   const [isMuted, setIsMuted] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
@@ -75,7 +87,7 @@ export default function HeroSection({ creator, isCreator }: HeroSectionProps) {
         />
       ) : (
         <div className="absolute top-0 left-0 w-full h-full">
-            <Image
+            <OptimizedImage
               src={creator.coverPhotoUrl || "/images/auth-bg.jpg"}
               alt={`Cover image for ${creator.artistName}`}
               fill
@@ -166,9 +178,38 @@ export default function HeroSection({ creator, isCreator }: HeroSectionProps) {
             )}
           </div>
 
-          <h1 className="text-3xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white tracking-tight leading-tight">
-            {creator.artistName}
-          </h1>
+          <div className="flex items-center flex-wrap gap-2">
+            {/* Profile Picture / Avatar */}
+            {creator.profilePicUrl ? (
+              <div className="flex-shrink-0 mr-2">
+                <OptimizedImage
+                  src={creator.profilePicUrl}
+                  alt={creator.artistName}
+                  width={80}
+                  height={80}
+                  className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-[3px] border-gold shadow-lg"
+                />
+              </div>
+            ) : (
+              <div className="flex-shrink-0 mr-2 w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold/20 border-[3px] border-gold flex items-center justify-center">
+                <span className="text-2xl md:text-3xl font-bold text-gold">
+                  {creator.artistName?.charAt(0) || creator.fullName?.charAt(0) || "?"}
+                </span>
+              </div>
+            )}
+            <h1 className="text-3xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white tracking-tight leading-tight">
+              {creator.artistName}
+            </h1>
+            {creator.userType === 'zls_artist' && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-gold to-gold-dark rounded-full">
+                  <Crown size={14} className="text-black" />
+                  <span className="text-black font-bold text-sm">ZLS</span>
+                </div>
+                <span className="text-gold text-xs">Verified ZLS Artist</span>
+              </div>
+            )}
+          </div>
 
           {creator.tagline && (
             <p className="text-gold text-base md:text-xl mt-2 max-w-2xl italic">
@@ -176,21 +217,34 @@ export default function HeroSection({ creator, isCreator }: HeroSectionProps) {
             </p>
           )}
 
-          {/* Stats Bar */}
-          <div className="flex flex-wrap gap-4 md:gap-8 mt-6 text-white/60 text-sm md:text-base">
-            <span className="flex items-center gap-1.5">
-              <span className="text-gold font-semibold">{creator.followerCount ?? 0}</span> Followers
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="text-gold font-semibold">{creator.subscriberCount ?? 0}</span> Subscribers
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="text-gold font-semibold">{creator.totalLikes ?? 0}</span> Likes
-            </span>
+          {/* Stats Bar - Clickable Followers/Following */}
+          <div className="flex flex-wrap gap-8 md:gap-12 mt-6">
+            <button
+              onClick={() => onShowFollowers?.()}
+              className="text-center hover:scale-105 transition-transform"
+              aria-label="View followers"
+            >
+              <div className="text-2xl md:text-3xl font-bold text-white">{formatNumber(creator.followerCount)}</div>
+              <div className="text-white/50 text-sm">Followers</div>
+            </button>
+            <button
+              onClick={() => onShowFollowing?.()}
+              className="text-center hover:scale-105 transition-transform"
+              aria-label="View following"
+            >
+              <div className="text-2xl md:text-3xl font-bold text-white">{formatNumber(creator.followingCount)}</div>
+              <div className="text-white/50 text-sm">Following</div>
+            </button>
+            <div className="text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white">{formatNumber(creator.totalLikes)}</div>
+              <div className="text-white/50 text-sm">Likes</div>
+            </div>
             {creator.createdAt && (
-              <span className="flex items-center gap-1.5">
-                <CalendarCheck size={14} /> Joined {new Date(creator.createdAt).toLocaleDateString("en-ZA", { year: "numeric", month: "short" })}
-              </span>
+              <div className="text-center">
+                <div className="text-white/50 text-sm mt-2 flex items-center gap-1.5 justify-center">
+                  <CalendarCheck size={14} /> Joined {new Date(creator.createdAt).toLocaleDateString("en-ZA", { year: "numeric", month: "short" })}
+                </div>
+              </div>
             )}
           </div>
         </div>

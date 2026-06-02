@@ -13,10 +13,12 @@ import {
   Radio,
   Shield,
   BarChart3,
+  CheckCircle,
 } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/content-approval", label: "Content Approval", icon: CheckCircle },
   { href: "/admin/verification", label: "Verification", icon: UserCheck },
   { href: "/admin/posts", label: "Posts", icon: FileText },
   { href: "/admin/users", label: "Users", icon: Users },

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Play, Lock, Heart, Share2, Video, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
+import ReportButton from "../ReportButton";
 
 interface VideoItem {
   id: string;
@@ -16,6 +17,7 @@ interface VideoItem {
   isAgeRestricted?: boolean;
   ageRating?: string;
   interactions?: { type: string; userId: string }[];
+  userType?: string;
 }
 
 interface VideoLibraryProps {
@@ -110,6 +112,15 @@ export default function VideoLibrary({
                   </div>
                 )}
 
+                {/* ZLS badge overlay */}
+                {video.userType === 'zls_artist' && (
+                  <div className="absolute bottom-2 right-2 z-10">
+                    <div className="px-2 py-1 bg-gold/80 text-black text-xs font-bold rounded">
+                      ZLS ARTIST
+                    </div>
+                  </div>
+                )}
+
                 {/* Play button overlay */}
                 {canAccess(video) && (
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
@@ -164,6 +175,12 @@ export default function VideoLibrary({
                   >
                     <Share2 size={14} />
                   </button>
+                  <ReportButton
+                    targetType="post"
+                    targetId={video.id}
+                    targetTitle={video.title}
+                    variant="icon"
+                  />
                 </div>
               </div>
             </motion.div>

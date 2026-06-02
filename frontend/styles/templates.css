@@ -1,0 +1,181 @@
+/* ============================================
+   TEMPLATE CSS VARIABLES
+   ============================================ */
+
+/* Template 1: ICON STEEZE (Classic Luxury) */
+.template-icon {
+  --primary: #D4AF37;
+  --primary-dark: #B8960C;
+  --primary-light: #F5D76E;
+  --secondary: #FFFFFF;
+  --background: #0A0A0A;
+  --background-card: #1A1A1A;
+  --text: #FFFFFF;
+  --text-muted: #888888;
+  --accent: #D4AF37;
+  --font-heading: 'Playfair Display', serif;
+  --font-body: 'Inter', sans-serif;
+  --border-radius: 0px;
+  --button-radius: 0px;
+  --card-radius: 0px;
+  --shadow: 0 10px 30px rgba(0,0,0,0.5);
+  --transition: all 0.3s ease;
+}
+
+/* Template 2: REBEL STEEZE (Muscular Bold) */
+.template-rebel {
+  --primary: #D32F2F;
+  --primary-dark: #B71C1C;
+  --primary-light: #EF5350;
+  --secondary: #424242;
+  --background: #000000;
+  --background-card: #111111;
+  --text: #FFFFFF;
+  --text-muted: #999999;
+  --accent: #D32F2F;
+  --font-heading: 'Bebas Neue', sans-serif;
+  --font-body: 'Roboto Condensed', sans-serif;
+  --border-radius: 0px;
+  --button-radius: 0px;
+  --card-radius: 0px;
+  --shadow: 0 5px 20px rgba(211,47,47,0.3);
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Template 3: DIVA STEEZE (Feminine Elegant) */
+.template-diva {
+  --primary: #E8A2B4;
+  --primary-dark: #D48A9E;
+  --primary-light: #F5C6D4;
+  --secondary: #FFD1DC;
+  --background: #FFF5F5;
+  --background-card: #FFFFFF;
+  --text: #2D2D2D;
+  --text-muted: #666666;
+  --accent: #D4AF37;
+  --font-heading: 'Playfair Display', serif;
+  --font-body: 'Lato', sans-serif;
+  --border-radius: 24px;
+  --button-radius: 40px;
+  --card-radius: 24px;
+  --shadow: 0 10px 30px rgba(0,0,0,0.05);
+  --transition: all 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+}
+
+/* Template 4: THE LUMINARY (Glossy Black/Purple) */
+.template-luminary {
+  --primary: #5E2BFF;
+  --primary-dark: #4A1DCC;
+  --primary-light: #7B4FFF;
+  --secondary: #B200FF;
+  --background: #0A0A0A;
+  --background-card: #111111;
+  --text: #FFFFFF;
+  --text-muted: #888888;
+  --accent: #00D4FF;
+  --font-heading: 'Orbitron', sans-serif;
+  --font-body: 'Poppins', sans-serif;
+  --border-radius: 12px;
+  --button-radius: 30px;
+  --card-radius: 16px;
+  --shadow: 0 0 20px rgba(94,43,255,0.3);
+  --transition: all 0.3s ease;
+  --glow: 0 0 15px rgba(94,43,255,0.5);
+}
+
+/* Template 5: THE VISIONARY (Golden Yellow/Black) */
+.template-visionary {
+  --primary: #FFD700;
+  --primary-dark: #D4AF37;
+  --primary-light: #FFE44D;
+  --secondary: #000000;
+  --background: #000000;
+  --background-card: #0D0D0D;
+  --text: #FFFFFF;
+  --text-muted: #AAAAAA;
+  --accent: #FFD700;
+  --font-heading: 'Cormorant Garamond', serif;
+  --font-body: 'Montserrat', sans-serif;
+  --border-radius: 0px;
+  --button-radius: 0px;
+  --card-radius: 0px;
+  --shadow: 0 10px 30px rgba(255,215,0,0.1);
+  --transition: all 0.3s ease;
+  --border-gold: 1px solid rgba(255,215,0,0.3);
+}
+
+/* Template 6: THE PURE (Glossy White Minimal) */
+.template-pure {
+  --primary: #1A1A1A;
+  --primary-dark: #000000;
+  --primary-light: #333333;
+  --secondary: #8A8A8A;
+  --background: #FFFFFF;
+  --background-card: #F5F5F5;
+  --text: #1A1A1A;
+  --text-muted: #666666;
+  --accent: #B8960C;
+  --font-heading: 'Cormorant', serif;
+  --font-body: 'Inter', sans-serif;
+  --border-radius: 8px;
+  --button-radius: 8px;
+  --card-radius: 12px;
+  --shadow: 0 5px 20px rgba(0,0,0,0.05);
+  --transition: all 0.2s ease;
+}
+
+/* Template 7: THE SPECTRUM (Full Color Rainbow) */
+.template-spectrum {
+  --primary: linear-gradient(135deg, #FF0000, #FF7F00, #FFFF00, #00FF00, #0000FF, #4B0082, #9400D3);
+  --primary-dark: #FF0000;
+  --primary-light: #9400D3;
+  --secondary: #FFFFFF;
+  --background: #0A0A2A;
+  --background-card: #1A1A3A;
+  --text: #FFFFFF;
+  --text-muted: #CCCCCC;
+  --accent: #FFD700;
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --border-radius: 20px;
+  --button-radius: 40px;
+  --card-radius: 20px;
+  --shadow: 0 10px 30px rgba(0,0,0,0.3);
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --rainbow-border: linear-gradient(135deg, red, orange, yellow, green, blue, indigo, violet);
+}
+
+/* Template base class application */
+.template-icon .bg-black { background-color: var(--background) !important; }
+.template-rebel .bg-black { background-color: var(--background) !important; }
+.template-diva .bg-black { background-color: var(--background) !important; }
+.template-luminary .bg-black { background-color: var(--background) !important; }
+.template-visionary .bg-black { background-color: var(--background) !important; }
+.template-pure .bg-black { background-color: var(--background) !important; }
+.template-spectrum .bg-black { background: var(--background) !important; }
+
+/* Apply template colors to common elements */
+[class*="template-"] button.bg-gradient-to-r.from-gold {
+  background: var(--primary) !important;
+  color: var(--text) !important;
+}
+
+[class*="template-"] .text-gold {
+  color: var(--primary) !important;
+}
+
+[class*="template-"] .border-gold {
+  border-color: var(--primary) !important;
+}
+
+[class*="template-"] .bg-gold\/20 {
+  background-color: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+}
+
+[class*="template-"] .from-gold {
+  --tw-gradient-from: var(--primary) !important;
+}
+
+[class*="template-"] .to-gold-dark {
+  --tw-gradient-to: var(--primary-dark) !important;
+}

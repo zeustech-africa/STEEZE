@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, X, Flame } from "lucide-react";
+import { SearchResultSkeleton } from "@/components/ui/Skeleton";
 import { useSearchParams, useRouter } from "next/navigation";
 
 const categories = [
@@ -132,7 +133,15 @@ function SearchContent() {
           </div>
         )}
 
-        {loading && <div className="text-center py-8"><div className="animate-pulse text-gold">Searching...</div></div>}
+        {loading && (
+          <div className="max-w-2xl mx-auto py-4 px-4">
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <SearchResultSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {!loading && results.length === 0 && query && (
           <div className="text-center py-12"><p className="text-white/50">No creators found. Try a different search.</p></div>

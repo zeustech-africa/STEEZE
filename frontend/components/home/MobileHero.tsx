@@ -53,7 +53,7 @@ export default function MobileHero() {
           <span className="text-gold text-xs">Powered by ZeusLiveStudio</span>
         </div>
 
-        <h1 className="text-3xl md:text-6xl font-bold mb-4">
+        <h1 className="text-3xl font-bold mb-4 text-center px-4">
           <span className="bg-gradient-to-r from-gold to-gold-dark bg-clip-text text-transparent">
             You want style, entertainment,
           </span>
@@ -77,25 +77,31 @@ export default function MobileHero() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+        <div className="flex flex-col gap-4 w-full px-4 mt-8">
           <Link
             href="/signup/creator"
-            className="px-6 py-2.5 bg-gradient-to-r from-gold to-gold-dark text-black font-semibold rounded-full text-sm"
+            className="w-full px-6 py-3 text-center bg-gradient-to-r from-gold to-gold-dark text-black font-semibold rounded-full text-sm"
           >
-            Join as Creator
+            BRING YOUR STEEZE
           </Link>
           <Link
             href="/signup/vibes"
-            className="px-6 py-2.5 border border-neon-blue text-neon-blue font-semibold rounded-full text-sm"
+            className="w-full px-6 py-3 text-center border border-neon-blue text-neon-blue font-semibold rounded-full text-sm"
           >
-            Join as VIBES
+            FEEL THE VIBES
+          </Link>
+          <Link
+            href="/just-vibes/signup"
+            className="w-full px-6 py-3 text-center border border-purple-500 text-purple-500 font-semibold rounded-full text-sm hover:bg-purple-500 hover:text-white transition-all"
+          >
+            Just VIBES
           </Link>
 
           {/* Install App Button - shown on mobile devices */}
           {isMobile && (
             <button
               onClick={handleInstallClick}
-              className="px-6 py-2.5 bg-white/10 border border-gold text-gold font-semibold rounded-full text-sm hover:bg-gold hover:text-black transition-all flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 text-center bg-white/10 border border-gold text-gold font-semibold rounded-full text-sm hover:bg-gold hover:text-black transition-all flex items-center justify-center gap-2"
             >
               <Download size={14} /> Install App
             </button>

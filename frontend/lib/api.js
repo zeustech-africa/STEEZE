@@ -90,6 +90,7 @@ export const api = {
   // Upload
   getPresignedUrl: (fileName, fileType) => request('/uploads/presigned-url', { method: 'POST', body: JSON.stringify({ fileName, fileType }) }),
   uploadPost: (formData) => request('/posts', { method: 'POST', body: formData, headers: {} }),
+  uploadProfilePicture: (formData) => request('/creator/profile-picture', { method: 'POST', body: formData, headers: {} }),
 
   // Notifications
   getNotifications: () => request('/notifications'),
