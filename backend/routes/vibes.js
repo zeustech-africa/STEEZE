@@ -1,6 +1,8 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { authLimiter } from "../middleware/rateLimit.js";
+import { requireCaptcha } from "../middleware/captcha.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -8,7 +10,7 @@ const prisma = new PrismaClient();
 // ==================== VIBE SIGNUP (EXISTING) ====================
 
 // POST /api/vibes/signup - Multi-step VIBE registration
-router.post("/signup", async (req, res) => {
+router.post("/signup", authLimiter, requireCaptcha(), async (req, res) => {
   try {
     const {
       fullName,

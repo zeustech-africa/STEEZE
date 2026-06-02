@@ -1,68 +1,10 @@
 import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
-import payfastService from '../services/payfast.js';
 import { PrismaClient } from '@prisma/client';
 import { authenticateAny as authenticate } from '../middleware/auth.js';
 
 const router = Router();
 const prisma = new PrismaClient();
-
-// ============================================================
-// F1. PAYFAST SUBSCRIPTION CHECKOUT
-// ============================================================
-
-// POST /api/payments/create-subscription
-// Called by CheckoutButton to initiate a PayFast subscription
-router.post('/create-subscription',
-  authenticate,
-  [
-    body('tier').isIn(['basic', 'premium', 'gold']).withMessage('Invalid tier'),
-    body('price').isNumeric().withMessage('Price must be numeric'),
-    body('creatorId').optional().isString(),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
-    }
-
-    const { tier, price, creatorId } = req.body;
-    const userId = req.user.id;
-
-    try {
-      // PayFast service signature: createSubscriptionPayment(user, creatorId, tier, price)
-      // Returns { url, data } - the PayFast form submission URL and signed form data
-      const m_payment_id = `sub_${userId}_${Date.now()}`;
-      const pfResult = await payfastService.createSubscriptionPayment(
-        req.user,
-        creatorId || userId,
-        tier,
-        parseFloat(price)
-      );
-
-      // Create subscription record in DB (pending until PayFast ITN confirms)
-      await prisma.subscription.create({
-        data: {
-          userId,
-          tier,
-          price: parseFloat(price),
-          creatorId: creatorId || null,
-          status: 'pending',
-          paymentRef: m_payment_id,
-        },
-      });
-
-      return res.json({
-        success: true,
-        redirectUrl: pfResult.url,
-        payfastData: pfResult.data,
-      });
-    } catch (error) {
-      console.error('Subscription creation error:', error);
-      return res.status(500).json({ success: false, message: 'Failed to create subscription' });
-    }
-  }
-);
 
 // ============================================================
 // F8. PAID POST PURCHASE
@@ -116,12 +58,6 @@ router.post('/purchase-post',
       }
 
       const m_payment_id = `pp_${userId}_${postId}_${Date.now()}`;
-      const pfResult = await payfastService.createSubscriptionPayment(
-        req.user,
-        post.creatorId,
-        'paid_post',
-        parseFloat(price)
-      );
 
       // Record payment in DB (pending)
       await prisma.payment.create({
@@ -137,8 +73,7 @@ router.post('/purchase-post',
 
       return res.json({
         success: true,
-        redirectUrl: pfResult.url,
-        payfastData: pfResult.data,
+        paymentId: m_payment_id,
       });
     } catch (error) {
       console.error('Paid post purchase error:', error);
@@ -205,7 +140,7 @@ router.get('/history/receipt/:paymentId', authenticate, async (req, res) => {
         amount: payment.amount,
         tier: payment.tier,
         creator: payment.creator?.artistName || 'STEEZE',
-        paymentRef: payment.payfastId,
+        paymentRef: payment.payfastId || payment.id,
         status: payment.status,
       },
     });

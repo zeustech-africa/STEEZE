@@ -1,9 +1,41 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticateAny as auth } from "../middleware/auth.js";
+import { commentLimiter } from "../middleware/rateLimit.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// POST /api/posts/:id/comment — add a comment to a post
+router.post("/:id/comment", auth, commentLimiter, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    const userId = req.user.id;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: "Comment content is required" });
+    }
+
+    const comment = await prisma.postComment.create({
+      data: {
+        postId: id,
+        userId,
+        content: content.trim(),
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, profilePic: true, displayName: true },
+        },
+      },
+    });
+
+    return res.status(201).json({ success: true, comment });
+  } catch (error) {
+    console.error("Comment creation error:", error);
+    return res.status(500).json({ error: "Failed to add comment" });
+  }
+});
 
 // POST /api/posts/:id/like — like/unlike a post
 router.post("/:id/like", auth, async (req, res) => {
@@ -215,6 +247,63 @@ router.get("/user/:id/reposts", auth, async (req, res) => {
   } catch (error) {
     console.error("Get user reposts error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch reposts" });
+  }
+});
+
+// GET /api/posts/:id/download - Download post content (subscriber only)
+router.get("/:id/download", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Get post
+    const post = await prisma.post.findUnique({
+      where: { id },
+      include: { creator: true }
+    });
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Check user subscription tier
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { subscriptionTier: true }
+    });
+
+    const userTier = user?.subscriptionTier;
+    const canDownload = userTier === 'basic' || userTier === 'premium' || userTier === 'gold';
+
+    // Check if user is Just VIBES
+    const justVibesUser = await prisma.justVibesUser.findUnique({
+      where: { id: userId }
+    });
+
+    if (justVibesUser || !canDownload) {
+      return res.status(403).json({
+        error: 'Download requires Basic, Premium, or Gold subscription. Upgrade to download.'
+      });
+    }
+
+    // For direct purchase content, check if purchased
+    if (post.contentType === 'direct_purchase') {
+      const purchase = await prisma.directPurchase.findFirst({
+        where: { userId, postId: id, status: 'completed' }
+      });
+      if (!purchase) {
+        return res.status(403).json({ error: 'You must purchase this content before downloading' });
+      }
+    }
+
+    // Generate signed download URL using storage service
+    const { getSignedDownloadUrl } = await import('../services/storage.js');
+    const downloadUrl = await getSignedDownloadUrl(post.mediaUrl.split('/').pop(), 300);
+
+    res.json({ success: true, downloadUrl });
+  } catch (error) {
+    console.error('Download error:', error);
+    res.status(500).json({ error: 'Failed to prepare download' });
   }
 });
 

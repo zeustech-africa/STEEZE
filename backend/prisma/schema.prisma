@@ -7,6 +7,26 @@ datasource db {
   provider = "postgresql"
 }
 
+// Content type for creator uploads
+enum ContentType {
+  free
+  subscriber
+  direct_purchase
+  creator_page_only
+}
+
+// Distribution channels for creator content
+enum DistributionChannel {
+  steeze
+  youtube
+  spotify
+  apple_music
+  tiktok
+  instagram
+  facebook
+  twitter
+}
+
 model User {
   id                   String    @id @default(uuid())
   email                String    @unique
@@ -34,7 +54,7 @@ model User {
 
   // Independent Creator specific (only for userType = "independent_creator")
   creatorSubscription   CreatorSubscription?
-  subscriptionStatus    String   @default("inactive") // active, expired, cancelled
+  subscriptionStatus    String   @default("active") // active, grace_period, expired, cancelled
 
   // Revenue split
   revenueSplit         Float    @default(50) // 50 for ZLS, 70 for independent
@@ -47,6 +67,8 @@ model User {
   coverPhotoUrl        String?
   coverVideoUrl        String?
   tagline              String?
+  shortBio             String?
+  fullBio              String?
   socialLinks          Json?
   signedToZLS          Boolean   @default(false)
   templateId           String    @default("classic")
@@ -58,6 +80,16 @@ model User {
   subscriptionBasic    Float     @default(50)
   subscriptionPremium  Float     @default(99)
   subscriptionGold     Float     @default(199)
+
+  // GROUP Y: Subscription Management
+  subscriptionExpiresAt DateTime?
+  gracePeriodEndsAt     DateTime?
+  paymentFailureCount   Int       @default(0)
+  lastPaymentAttemptAt  DateTime?
+  
+  // Relations
+  paymentFailures       PaymentFailureLog[]
+
   twoFactorEnabled     Boolean   @default(false)
   twoFactorSecret      String?
   backupCodes          String?
@@ -107,6 +139,9 @@ model User {
   vibesSubscriptions   Subscription[]  @relation("subscriber")
   creatorSubscriptions Subscription[]  @relation("subscribedTo")
   sessions             Session[]
+  refreshTokens        RefreshToken[]
+  transactions         Transaction[]
+  creatorWallet        CreatorWallet?
   loginHistories       LoginHistory[]
   contentReports       ContentReport[]
   adminUser            AdminUser?
@@ -117,6 +152,10 @@ model User {
   dataExportRequests   DataExportRequest[]
   parentalConsentsAsChild  ParentalConsent[]  @relation("ParentalConsentChild")
   parentalConsentsAsParent ParentalConsent[]  @relation("ParentalConsentParent")
+  
+  @@index([subscriptionTier])
+  @@index([subscriptionStatus])
+  @@index([subscriptionExpiresAt])
   consentRecords       ConsentRecord[]
   emailVerifications   EmailVerification[]
   optOutRecords        OptOutRecord[]
@@ -124,6 +163,28 @@ model User {
   followers            Follow[]         @relation("FollowFollower")
   following            Follow[]         @relation("FollowFollowing")
   creatorAnalytics     CreatorAnalytics[]
+  reviewHistory        ReviewHistory[]
+  adminNotifications   AdminNotification[]
+  savedPosts           SavedPost[]
+  directPurchases      DirectPurchase[]
+  postsAsOriginalCreator Post[]           @relation("OriginalCreator")
+}
+
+// Payment failure tracking for subscriptions
+model PaymentFailureLog {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attemptNumber Int       // 1, 2, or 3
+  amount        Int       // Amount attempted in cents
+  errorMessage  String?
+  status        String    @default("failed") // failed, retry_scheduled, resolved
+  notifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@index([status])
 }
 
 model Post {
@@ -139,7 +200,7 @@ model Post {
   mediaUrl        String?
   thumbnailUrl    String?
   coverArtUrl     String?
-  price           Float     @default(0)
+  price           Int?               // For direct_purchase content (in cents, minimum 500 = R5)
   isFree          Boolean   @default(true)
   isPinned        Boolean   @default(false)
   status          String    @default("published")
@@ -162,6 +223,14 @@ model Post {
   downloadsCount  Int       @default(0)
   sharesCount     Int       @default(0)
   
+  // GROUP W: Content Type & Monetization
+  contentType        ContentType        @default(free)
+  distributionChannels DistributionChannel[]
+  originalCreatorId  String?            // For repost attribution (when VIBER saves)
+  originalCreator    User?              @relation("OriginalCreator", fields: [originalCreatorId], references: [id])
+  repostCount        Int                @default(0)
+  saveCount          Int                @default(0)
+  
   interactions    PostInteraction[]
   comments        Comment[]
   postAnalytics   PostAnalytics[]
@@ -172,6 +241,13 @@ model Post {
   contentLock          ContentLock?
   distributionJobs     DistributionJob[]
   contentAnalytics     ContentAnalytics?
+  reviewQueue          ReviewQueue?
+  reviewHistory        ReviewHistory[]
+  savedBy              SavedPost[]        // VIBERs who saved this post
+  directPurchases      DirectPurchase[]
+  
+  @@index([contentType])
+  @@index([originalCreatorId])
 }
 
 model PostInteraction {
@@ -236,16 +312,19 @@ model Subscription {
 }
 
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  type      String
-  message   String?
-  fromUserId String?
-  postId    String?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  userId      String?
+  type        String
+  title       String?
+  message     String?
+  targetEmail String?
+  fromUserId  String?
+  postId      String?
+  read        Boolean  @default(false)
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
-  user      User     @relation("notificationRecipient", fields: [userId], references: [id])
+  user      User?    @relation("notificationRecipient", fields: [userId], references: [id])
   fromUser  User?    @relation("notificationSender", fields: [fromUserId], references: [id])
   post      Post?    @relation(fields: [postId], references: [id])
 }
@@ -344,8 +423,8 @@ model VerificationMessage {
 
 model AuditLog {
   id         String   @id @default(uuid())
-  adminId    String
-  admin      User     @relation(fields: [adminId], references: [id])
+  adminId    String?
+  admin      User?    @relation(fields: [adminId], references: [id])
   action     String
   targetType String
   targetId   String
@@ -500,11 +579,15 @@ model Session {
 model SecurityEvent {
   id        String   @id @default(uuid())
   type      String
+  severity  String
+  email     String?
   ip        String
   userAgent String?
   details   Json?
-  severity  String
   createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([type])
 }
 
 model SecurityAlert {
@@ -918,4 +1001,399 @@ model ContentAnalytics {
   updatedAt      DateTime @updatedAt
 
   @@unique([postId])
+}
+
+// ========================
+// AUDIT: REVIEW & NOTIFICATION MODELS
+// ========================
+
+// AUDIT: Content pending review queue with priority and assignment
+model ReviewQueue {
+  id            String    @id @default(cuid())
+  postId        String    @unique
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  priority      Int       @default(0)  // 0=normal, 1=high, 2=urgent
+  assignedTo    String?   // Admin user ID (references User.id)
+  status        String    @default("pending") // pending, in_review, approved, rejected
+  submittedAt   DateTime  @default(now())
+  reviewedAt    DateTime?
+
+  @@index([status])
+  @@index([priority])
+  @@index([submittedAt])
+  @@index([assignedTo])
+  @@index([status, priority])
+}
+
+// AUDIT: Complete audit trail for all review actions
+model ReviewHistory {
+  id            String    @id @default(cuid())
+  postId        String
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  adminId       String
+  admin         User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  action        String    // approved, rejected, flagged, reassigned, bulk_approved, bulk_rejected
+  notes         String?
+  previousStatus String?
+  newStatus     String
+  metadata      Json?     // Additional data (bulk count, reason codes, etc.)
+  createdAt     DateTime  @default(now())
+
+  @@index([postId])
+  @@index([adminId])
+  @@index([createdAt])
+  @@index([action])
+  @@index([createdAt, action])
+}
+
+// AUDIT: Admin notifications for pending reviews and system events
+model AdminNotification {
+  id            String    @id @default(cuid())
+  adminId       String
+  admin         User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  type          String    @default("info") // info, warning, critical, review_needed
+  title         String
+  message       String
+  link          String?
+  isRead        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  @@index([adminId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// GROUP W: VIBER saved posts (save/repost functionality)
+model SavedPost {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId        String
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+
+  // For playlists: VIBER can organize saved audio into playlists
+  playlistId    String?
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@index([createdAt])
+  @@index([playlistId])
+}
+
+// GROUP W: Direct purchase tracking for locked content
+model DirectPurchase {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId        String
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  amount        Int       // Amount paid in cents
+  status        String    @default("pending") // pending, completed, failed, refunded
+  paymentMethod String?   // payfast, card, etc.
+  transactionId String?   // Payment gateway reference
+  metadata      Json?     // Additional payment data
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, postId])  // Prevent duplicate purchases
+  @@index([userId])
+  @@index([postId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ========================
+// GROUP X: ADVERTISER MANAGEMENT
+// ========================
+
+// Advertiser account for ad campaigns
+model Advertiser {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String    // Hashed with bcrypt
+  companyName   String
+  website       String?
+  taxId         String?   // VAT / Tax registration number
+  address       String?
+  phone         String?
+  status        String    @default("pending") // pending, approved, rejected, suspended
+  approvedBy    String?
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  rejectionReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       AdvertiserProfile?
+  verification  AdvertiserVerification?
+  campaigns     Campaign[]
+  payments      AdPayment[]
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Advertiser profile (additional info)
+model AdvertiserProfile {
+  id            String    @id @default(cuid())
+  advertiserId  String    @unique
+  advertiser    Advertiser @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  logoUrl       String?
+  description   String?
+  industry      String?   // music, fashion, tech, etc.
+  targetAudience Json?    // Age range, interests, locations
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Advertiser verification documents
+model AdvertiserVerification {
+  id            String    @id @default(cuid())
+  advertiserId  String    @unique
+  advertiser    Advertiser @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  documentType  String    // business_license, tax_certificate, id_document
+  documentUrl   String
+  status        String    @default("pending") // pending, verified, rejected
+  verifiedBy    String?
+  verifiedAt    DateTime?
+  rejectionReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Ad payment transactions
+model AdPayment {
+  id            String    @id @default(cuid())
+  advertiserId  String
+  advertiser    Advertiser @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  campaignId    String
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  amount        Int       // Amount in cents
+  currency      String    @default("ZAR")
+  status        String    @default("pending") // pending, completed, failed, refunded
+  paymentMethod String?   // payfast, card, etc.
+  transactionId String?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+}
+
+// Ad campaign
+model Campaign {
+  id            String    @id @default(cuid())
+  advertiserId  String
+  advertiser    Advertiser @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  
+  // Campaign details
+  name          String
+  description   String?
+  placement     String    // feed_standard, feed_premium, video_short, video_premium, explore, trending, homepage_hero
+  cpm           Int       // CPM in cents (e.g., 400 = $4.00)
+  budget        Int       // Total budget in cents
+  spent         Int       @default(0) // Spent amount in cents
+  remainingBudget Int    @default(0) // Calculated field
+  
+  // Targeting
+  countries     Json?     // Array of country codes
+  interests     Json?     // Array of interest categories
+  ageRange      Json?     // { min: 18, max: 65 }
+  
+  // Media
+  mediaUrl      String    // Ad creative URL
+  mediaType     String    // image, video
+  destinationUrl String   // Where user goes on click
+  
+  // Scheduling
+  startDate     DateTime?
+  endDate       DateTime?
+  
+  // Status
+  status        String    @default("draft") // draft, pending_review, approved, active, paused, rejected, completed, suspended
+  rejectionReason String?
+  
+  // Admin fields
+  approvedBy    String?
+  approvedAt    DateTime?
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  
+  // Metrics
+  impressions   Int       @default(0)
+  clicks        Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  payments      AdPayment[]
+  impressions_log AdImpression[]
+  clicks_log    AdClick[]
+
+  @@index([advertiserId])
+  @@index([status])
+  @@index([placement])
+  @@index([createdAt])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+// Ad impression tracking
+model AdImpression {
+  id            String    @id @default(cuid())
+  campaignId    String
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId        String?   // User who saw the ad (if logged in)
+  sessionId     String    // For anonymous tracking
+  ipAddress     String?
+  userAgent     String?
+  viewedAt      DateTime  @default(now())
+  viewDuration  Int?      // Milliseconds viewed
+  fullyVisible  Boolean   @default(false) // Was ad fully on screen for 1.5+ seconds?
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([viewedAt])
+}
+
+// Ad click tracking
+model AdClick {
+  id            String    @id @default(cuid())
+  campaignId    String
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId        String?
+  sessionId     String
+  ipAddress     String?
+  userAgent     String?
+  clickedAt     DateTime  @default(now())
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([clickedAt])
+}
+
+// Unified ad application (advertiser + campaign together)
+model AdApplication {
+  id            String    @id @default(cuid())
+  
+  // Advertiser info
+  companyName   String
+  email         String
+  password      String    // Hashed with bcrypt
+  taxId         String?
+  phone         String?
+  address       String?
+  website       String?
+  
+  // Campaign info
+  campaignName      String
+  campaignDescription String?
+  placement         String
+  cpm               Int       // CPM in cents
+  budget            Int       // Total budget in cents
+  mediaUrl          String
+  mediaType         String    // image, video
+  destinationUrl    String
+  countries         Json?     // Array of country codes
+  interests         Json?     // Array of interest categories
+  ageRange          Json?     // { min: 18, max: 65 }
+  startDate         DateTime?
+  endDate           DateTime?
+  
+  // Status
+  status            String    @default("pending") // pending, approved, rejected
+  rejectionReason   String?
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  
+  // References after approval
+  advertiserId      String?
+  campaignId        String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}
+
+
+model CreatorWallet {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  balance        Float    @default(0)
+  totalEarned    Float    @default(0)
+  totalWithdrawn Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model FailedLoginAttempt {
+  id          String   @id @default(uuid())
+  email       String
+  ip          String?
+  userAgent   String?
+  attemptedAt DateTime @default(now())
+
+  @@index([email])
+  @@index([attemptedAt])
+}
+
+model AdminAlert {
+  id         String    @id @default(uuid())
+  type       String
+  severity   String
+  title      String
+  message    String
+  isResolved Boolean   @default(false)
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([isResolved])
+  @@index([createdAt])
+}
+
+model Transaction {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId        String?
+  wallet          CreatorWallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  amount          Float
+  type            String   // credit, debit, payout, refund
+  status          String   @default("pending") // pending, completed, failed, cancelled
+  reference       String?  // Paystack reference ID, withdrawal ID, order ID
+  description     String?
+  metadata        Json?    // Additional data (subscriptionId, postId, etc.)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([createdAt])
+  @@index([status])
+  @@index([type])
 }

@@ -1,6 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
+import sharp from "sharp";
 import { PrismaClient } from "@prisma/client";
 import { fileURLToPath } from "url";
 import {
@@ -11,6 +13,11 @@ import {
   addZLSWatermarkToAudio,
   addStandardWatermarkToAudio,
 } from "../utils/watermark.js";
+import { authenticateAny } from "../middleware/auth.js";
+import { uploadFile } from "../services/r2.js";
+import { uploadLimiter, followLimiter, authLimiter } from "../middleware/rateLimit.js";
+import { requireCaptcha } from "../middleware/captcha.js";
+import { extractHashtags } from "./hashtags.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +47,20 @@ const upload = multer({
   },
 });
 
+// Memory storage multer for resumable uploads (chunks in memory)
+const resumableUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(mp3|wav|flac|aac|ogg|m4a|mp4|mov|avi|webm|mkv|jpg|jpeg|png|gif|webp|bmp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type"));
+    }
+  },
+});
+
 // MIDDLEWARE: Auth (simple token/userId-based; use token from Authorization header)
 const authenticate = async (req, res, next) => {
   try {
@@ -57,7 +78,7 @@ const authenticate = async (req, res, next) => {
 // ============================================================
 // CREATOR SIGNUP
 // ============================================================
-router.post("/signup", upload.fields([{ name: "idDocument" }, { name: "selfie" }]), async (req, res) => {
+router.post("/signup", authLimiter, requireCaptcha(), upload.fields([{ name: "idDocument" }, { name: "selfie" }]), async (req, res) => {
   try {
     const {
       artistName, tagline, category, bio, musicJourney,
@@ -117,95 +138,230 @@ router.post("/signup", upload.fields([{ name: "idDocument" }, { name: "selfie" }
   }
 });
 
-// POST /api/creators/upload - Upload content (audio/video/image/text/event)
-router.post("/upload", upload.single("file"), async (req, res) => {
+// POST /api/creators/upload - Unified upload for music, video, photo
+router.post("/upload", authenticateAny, uploadLimiter, upload.single("file"), async (req, res) => {
   try {
-    const { type, title, description, isFree, price, distribution, creatorId, status, scheduledFor, lyrics, album, thumbnailUrl, coverArtUrl, isAgeRestricted } = req.body;
-    const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
-    const parsedDistribution = distribution ? JSON.parse(distribution) : {};
+    const userId = req.user.id;
+    const { type, title, description, isPaid, price, story } = req.body;
+    const file = req.file;
 
-    if (!title || !creatorId) {
-      return res.status(400).json({ success: false, message: "Title and creatorId are required" });
+    // When creating a post, extract and store hashtags
+    const hashtags = extractHashtags(description + ' ' + (req.body.caption || ''));
+    // Store hashtags in a separate table or as metadata for search
+
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Apply watermark based on creator type
-    let watermarkedUrl = fileUrl;
-    if (req.file && type !== "text") {
-      try {
-        const creator = await prisma.user.findUnique({ where: { id: creatorId }, select: { userType: true, username: true, artistName: true } });
-        if (creator) {
-          const inputPath = req.file.path;
-          const outputPath = inputPath.replace(/\.([^.]+)$/, "_wm.$1");
-          if (type === "image") {
-            if (creator.userType === "zls_artist") {
-              await addZLSWatermarkToImage(inputPath, outputPath, creator.username, creator.artistName);
-            } else {
-              await addStandardWatermarkToImage(inputPath, outputPath, creator.username);
-            }
-            watermarkedUrl = `/uploads/${outputPath.split("/").pop()}`;
-          } else if (type === "video") {
-            if (creator.userType === "zls_artist") {
-              await addZLSWatermarkToVideo(inputPath, outputPath, creator.username, creator.artistName);
-            } else {
-              await addStandardWatermarkToVideo(inputPath, outputPath, creator.username);
-            }
-            watermarkedUrl = `/uploads/${outputPath.split("/").pop()}`;
-          } else if (type === "audio") {
-            if (creator.userType === "zls_artist") {
-              await addZLSWatermarkToAudio(inputPath, outputPath, creator.username, creator.artistName);
-            } else {
-              await addStandardWatermarkToAudio(inputPath, outputPath, creator.username);
-            }
-            watermarkedUrl = `/uploads/${outputPath.split("/").pop()}`;
-          }
-        }
-      } catch (wmError) {
-        console.warn("Watermark application failed, using original:", wmError.message);
-      }
+    if (!type || !title) {
+      return res.status(400).json({ error: "Type and title are required" });
     }
 
-    const post = await prisma.post.create({
-      data: {
-        type: type || "text",
-        title,
-        description: description || "",
-        mediaUrl: watermarkedUrl,
-        thumbnailUrl: thumbnailUrl || coverArtUrl || (type === "video" ? watermarkedUrl : null),
-        isFree: isFree === "true" || isFree === true,
-        price: price ? parseFloat(price) : 0,
-        creatorId,
-        distributionSelections: parsedDistribution,
-        status: status || "pending_admin",
-        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
-        lyrics: lyrics || null,
-        album: album || null,
-        isAgeRestricted: isAgeRestricted === "true" || isAgeRestricted === true,
-      },
+    // Get user info for watermark
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { artistName: true, userType: true, username: true }
     });
 
-    // If it's an image type post, add to galleryPhotos
-    if (type === "image" && fileUrl) {
-      const creator = await prisma.user.findUnique({ where: { id: creatorId } });
-      const existingGallery = creator?.galleryPhotos || [];
-      await prisma.user.update({
-        where: { id: creatorId },
+    const artistName = user?.artistName || "Artist";
+    const userType = user?.userType;
+
+    // Process file based on type
+    let fileUrl;
+    let thumbnailUrl = null;
+    let processedBuffer = file.buffer;
+
+    if (type === "photo") {
+      // Resize image for gallery
+      processedBuffer = await sharp(file.buffer)
+        .resize(800, 800, { fit: "inside" })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      const filename = `gallery/${userId}/${Date.now()}_photo.jpg`;
+      fileUrl = await uploadFile(processedBuffer, filename, "image/jpeg");
+
+      // Create post for photo
+      const photoPost = await prisma.post.create({
         data: {
-          galleryPhotos: [...existingGallery, { url: fileUrl, story: description || "" }],
+          type: "image",
+          title,
+          description: story || description || "",
+          mediaUrl: fileUrl,
+          creatorId: userId,
+          isFree: true,
+          price: 0,
+          status: "pending_admin",
+          watermarkApplied: true,
+          watermarkType: userType === "zls_artist" ? "zls" : "standard",
         },
       });
+
+      // Update user's galleryPhotos
+      const creator = await prisma.user.findUnique({ where: { id: userId } });
+      const existingGallery = creator?.galleryPhotos || [];
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          galleryPhotos: [...existingGallery, { url: fileUrl, story: story || description || "" }],
+        },
+      });
+
+      return res.json({ success: true, content: photoPost, type: "photo" });
+
+    } else if (type === "music") {
+      // Process audio file
+      const filename = `songs/${userId}/${Date.now()}_song.mp3`;
+      fileUrl = await uploadFile(file.buffer, filename, file.mimetype);
+
+      // Create post for song
+      const song = await prisma.post.create({
+        data: {
+          creatorId: userId,
+          type: "audio",
+          title,
+          description: description || null,
+          mediaUrl: fileUrl,
+          isFree: !(isPaid === "true"),
+          price: isPaid === "true" ? parseFloat(price) || 0 : 0,
+          status: "pending_admin",
+          watermarkApplied: true,
+          watermarkType: userType === "zls_artist" ? "zls" : "standard",
+        },
+      });
+
+      return res.json({ success: true, content: song, type: "music" });
+
+    } else if (type === "video") {
+      // Process video file
+      const filename = `videos/${userId}/${Date.now()}_video.mp4`;
+      fileUrl = await uploadFile(file.buffer, filename, file.mimetype);
+
+      // Create post for video
+      const video = await prisma.post.create({
+        data: {
+          creatorId: userId,
+          type: "video",
+          title,
+          description: description || null,
+          mediaUrl: fileUrl,
+          isFree: !(isPaid === "true"),
+          price: isPaid === "true" ? parseFloat(price) || 0 : 0,
+          status: "pending_admin",
+          watermarkApplied: true,
+          watermarkType: userType === "zls_artist" ? "zls" : "standard",
+        },
+      });
+
+      return res.json({ success: true, content: video, type: "video" });
     }
 
-    // Create notification for followers
-    if (status === "published") {
-      try {
-        await createPostNotification(creatorId, post.id, post.title);
-      } catch {}
-    }
-
-    res.json({ success: true, post });
+    return res.status(400).json({ error: "Invalid content type" });
+    
   } catch (error) {
     console.error("Upload error:", error);
-    res.status(500).json({ success: false, message: "Upload failed" });
+    res.status(500).json({ error: "Failed to upload content" });
+  }
+});
+
+// ============================================================
+// RESUMABLE CHUNKED UPLOAD
+// ============================================================
+// POST /api/creators/upload/resumable - Resumable chunked upload
+router.post("/upload/resumable", authenticateAny, resumableUpload.single("file"), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { totalBytes, uploadedBytes, fileId, taskId } = req.body;
+    const file = req.file;
+
+    // When creating a post, extract and store hashtags
+    const hashtags = extractHashtags(req.body.description || '');
+    // Store hashtags in a separate table or as metadata for search
+
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Store chunks in temporary directory
+    const tempDir = path.join(__dirname, "../../uploads/temp");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const chunkPath = path.join(tempDir, `${userId}_${fileId}_${taskId}`);
+
+    // Append chunk to file
+    fs.appendFileSync(chunkPath, file.buffer);
+
+    const currentSize = fs.statSync(chunkPath).size;
+    const isComplete = currentSize >= parseInt(totalBytes);
+
+    if (isComplete) {
+      // Process complete file based on type
+      const fileBuffer = fs.readFileSync(chunkPath);
+
+      // Get user info for watermark
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { artistName: true, userType: true },
+      });
+
+      const artistName = user?.artistName || "Artist";
+      const userType = user?.userType;
+
+      // Determine file type
+      const ext = path.extname(file.originalname).toLowerCase();
+      let fileType = "image";
+      if ([".mp4", ".mov", ".avi", ".mkv"].includes(ext)) fileType = "video";
+      if ([".mp3", ".wav", ".aac", ".m4a"].includes(ext)) fileType = "audio";
+
+      // Apply watermark
+      let processedBuffer = fileBuffer;
+      if (fileType === "image") {
+        if (userType === "zls_artist") {
+          processedBuffer = await addZLSWatermarkToImage(fileBuffer, artistName);
+        } else {
+          processedBuffer = await addStandardWatermarkToImage(fileBuffer, artistName);
+        }
+      }
+
+      // Upload to R2
+      const filename = `uploads/${userId}/${Date.now()}_${file.originalname}`;
+      const fileUrl = await uploadFile(processedBuffer, filename, file.mimetype);
+
+      // Save to database
+      let content;
+      if (fileType === "image") {
+        content = await prisma.galleryPhoto.create({
+          data: {
+            userId,
+            imageUrl: fileUrl,
+            status: "pending",
+          },
+        });
+      } else {
+        content = await prisma.post.create({
+          data: {
+            creatorId: userId,
+            type: fileType,
+            title: path.parse(file.originalname).name,
+            mediaUrl: fileUrl,
+            status: "pending_admin",
+            watermarkApplied: true,
+            watermarkType: userType === "zls_artist" ? "zls" : "standard",
+          },
+        });
+      }
+
+      // Clean up temp file
+      fs.unlinkSync(chunkPath);
+
+      res.json({ complete: true, content, fileUrl });
+    } else {
+      res.json({ complete: false, uploadedBytes: currentSize });
+    }
+  } catch (error) {
+    console.error("Resumable upload error:", error);
+    res.status(500).json({ error: "Upload failed" });
   }
 });
 
@@ -483,7 +639,7 @@ router.post("/interact", async (req, res) => {
 // ============================================================
 // FOLLOW / UNFOLLOW
 // ============================================================
-router.post("/follow", async (req, res) => {
+router.post("/follow", followLimiter, async (req, res) => {
   try {
     const { followerId, followingId } = req.body;
     if (!followerId || !followingId) {
@@ -526,6 +682,35 @@ router.post("/follow", async (req, res) => {
   }
 });
 
+// GET /api/creators/:username - Get creator profile by username
+router.get("/:username", async (req, res) => {
+  try {
+    const { username } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        artistName: true,
+        tagline: true,
+        shortBio: true,
+        fullBio: true,
+        profilePicUrl: true,
+        coverPhotoUrl: true,
+        coverVideoUrl: true,
+        socialLinks: true,
+        templateId: true,
+      },
+    });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Creator not found" });
+    }
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error("Get creator by username error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch creator" });
+  }
+});
+
 // GET /api/creators/:id/followers - Get followers list
 router.get("/:id/followers", async (req, res) => {
   try {
@@ -534,7 +719,7 @@ router.get("/:id/followers", async (req, res) => {
       where: { followingId: id },
       include: {
         follower: {
-          select: { id: true, artistName: true, email: true, profilePhotoUrl: true, coverPhotoUrl: true },
+          select: { id: true, artistName: true, email: true, profilePhotoUrl: true, coverPhotoUrl: true, templateId: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -726,167 +911,15 @@ router.post("/withdraw", async (req, res) => {
       data: {
         creatorId,
         amount: parseFloat(amount),
-        bankDetails: bankDetails || "Default bank",
+        bankDetails: bankDetails || "",
         status: "pending",
       },
     });
+
     res.json({ success: true, withdrawal });
   } catch (error) {
-    console.error("Withdraw error:", error);
+    console.error("Withdrawal error:", error);
     res.status(500).json({ success: false, message: "Withdrawal request failed" });
-  }
-});
-
-// ============================================================
-// PROFILE / TEMPLATE
-// ============================================================
-// PUT /api/creators/:id/update - Update creator profile
-router.put("/:id/update", upload.single("coverImage"), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { artistName, tagline, fullBio, musicJourney, category, socialLinks, template } = req.body;
-
-    const creator = await prisma.user.findUnique({ where: { id } });
-    if (!creator) {
-      return res.status(404).json({ success: false, message: "Creator not found" });
-    }
-
-    const updateData = {};
-
-    if (artistName) updateData.artistName = artistName;
-    if (tagline !== undefined) updateData.tagline = tagline;
-    if (fullBio) updateData.bio = fullBio;
-    if (musicJourney) updateData.musicJourney = musicJourney;
-    if (category) updateData.category = category;
-    if (template) updateData.template = template;
-
-    if (socialLinks) {
-      const parsed = JSON.parse(socialLinks);
-      updateData.socialLinks = {
-        instagram: parsed.instagram || creator.socialLinks?.instagram || "",
-        twitter: parsed.twitter || creator.socialLinks?.twitter || "",
-        tiktok: parsed.tiktok || creator.socialLinks?.tiktok || "",
-        youtube: parsed.youtube || creator.socialLinks?.youtube || "",
-        spotify: parsed.spotify || creator.socialLinks?.spotify || "",
-        appleMusic: parsed.appleMusic || creator.socialLinks?.appleMusic || "",
-        facebook: parsed.facebook || creator.socialLinks?.facebook || "",
-        website: parsed.website || creator.socialLinks?.website || "",
-      };
-    }
-
-    if (req.file) {
-      updateData.coverPhotoUrl = `/uploads/${req.file.filename}`;
-    }
-
-    const updated = await prisma.user.update({ where: { id }, data: updateData });
-    res.json({ success: true, creator: updated });
-  } catch (error) {
-    console.error("Update creator error:", error);
-    res.status(500).json({ success: false, message: "Update failed" });
-  }
-});
-
-// PUT /api/creators/:id/template - Update template only
-router.put("/:id/template", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { template } = req.body;
-    if (!template) return res.status(400).json({ success: false, message: "template is required" });
-
-    const updated = await prisma.user.update({ where: { id }, data: { template } });
-    res.json({ success: true, template: updated.template });
-  } catch (error) {
-    console.error("Update template error:", error);
-    res.status(500).json({ success: false, message: "Template update failed" });
-  }
-});
-
-// GET /api/creators/status/:userId - Get verification status
-router.get("/status/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        artistName: true,
-        email: true,
-        verificationStatus: true,
-        isVerified: true,
-        createdAt: true,
-      },
-    });
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
-    res.json({ success: true, user });
-  } catch (error) {
-    console.error("Status check error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
-
-// GET /api/creators/:username - Get creator profile with all content
-router.get("/:username", async (req, res) => {
-  try {
-    const { username } = req.params;
-    const preview = req.query.preview === "true";
-
-    const creator = await prisma.user.findFirst({
-      where: {
-        artistName: { equals: username, mode: "insensitive" },
-        role: "creator",
-        verificationStatus: "approved",
-      },
-      include: {
-        posts: {
-          orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-          include: { interactions: true },
-        },
-      },
-    });
-
-    if (!creator) {
-      return res.status(404).json({ success: false, message: "Creator not found" });
-    }
-
-    // Separate posts by type
-    const songs = creator.posts.filter((p) => p.type === "audio");
-    const videos = creator.posts.filter((p) => p.type === "video");
-    const galleryPhotos = creator.galleryPhotos || [];
-    const textPosts = creator.posts.filter((p) => p.type === "text");
-    const imagePosts = creator.posts.filter((p) => p.type === "image");
-    const vipContent = creator.posts.filter((p) => !p.isFree);
-    const events = creator.posts.filter((p) => p.type === "event");
-    const drafts = creator.posts.filter((p) => p.status === "draft");
-    const scheduled = creator.posts.filter((p) => p.status === "scheduled");
-
-    // Build derived stats
-    const followerCount = await prisma.follow.count({ where: { followingId: creator.id } });
-    const subscriberCount = await prisma.subscription.count({ where: { creatorId: creator.id, status: "active" } });
-    const totalLikes = creator.posts.reduce((sum, p) => sum + (p.interactions?.filter((i) => i.type === "like").length || 0), 0);
-    const totalViews = creator.posts.reduce((sum, p) => sum + (p.interactions?.filter((i) => i.type === "view").length || 0), 0);
-
-    res.json({
-      success: true,
-      preview,
-      creator: {
-        ...creator,
-        songs,
-        videos,
-        galleryPhotos,
-        posts: [...textPosts, ...imagePosts],
-        vipContent,
-        events,
-        drafts,
-        scheduled,
-        followerCount,
-        subscriberCount,
-        totalLikes,
-        totalViews,
-      },
-    });
-  } catch (error) {
-    console.error("Get creator error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 

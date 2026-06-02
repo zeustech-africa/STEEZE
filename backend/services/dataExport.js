@@ -1,9 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const archiver = require('archiver');
+// Dynamically import archiver (ES module compatible)
+let archiver;
+const loadArchiver = async () => {
+  if (!archiver) {
+    const archiverModule = await import('archiver');
+    archiver = archiverModule.default;
+  }
+  return archiver;
+};
 import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
 import { uploadFile } from './r2.js';
@@ -208,7 +214,8 @@ async function createZipArchive(data, user) {
 
   const zipPath = path.join(exportDir, `steeze-export-${user.id}-${timestamp}.zip`);
   const output = fs.createWriteStream(zipPath);
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  const archiverLib = await loadArchiver();
+  const archive = archiverLib('zip', { zlib: { level: 9 } });
 
   return new Promise((resolve, reject) => {
     output.on('close', () => resolve(zipPath));

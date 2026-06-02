@@ -163,7 +163,22 @@ router.get('/posts/pending', requirePermission('posts:read'), async (req, res) =
 
   const posts = await prisma.post.findMany({
     where,
-    include: { creator: true },
+    select: {
+      id: true,
+      type: true,
+      contentType: true,
+      title: true,
+      description: true,
+      mediaUrl: true,
+      thumbnailUrl: true,
+      price: true,
+      isFree: true,
+      autoScanStatus: true,
+      autoScanReason: true,
+      adminStatus: true,
+      createdAt: true,
+      creator: { select: { id: true, artistName: true, fullName: true, email: true, profilePicUrl: true } }
+    },
     orderBy: { createdAt: 'asc' },
     take: parseInt(limit),
     skip: (parseInt(page) - 1) * parseInt(limit),
@@ -173,23 +188,221 @@ router.get('/posts/pending', requirePermission('posts:read'), async (req, res) =
   res.json({ success: true, posts, total });
 });
 
+// POST /api/admin/posts/bulk-approve - Bulk approve free content only (Super Admin only)
 router.post('/posts/bulk-approve', requirePermission('posts:approve'), async (req, res) => {
-  const { postIds, approvalType } = req.body;
-  await prisma.post.updateMany({
-    where: { id: { in: postIds } },
-    data: {
-      adminStatus: approvalType === 'global' ? 'approved_global' : 'approved_profile',
-      isGlobalFeed: approvalType === 'global',
-      approvedAt: new Date(),
-    },
-  });
-  res.json({ success: true });
+  try {
+    const { postIds, approvalType } = req.body; // approvalType: 'global' or 'profile'
+    const adminId = req.user.id;
+    const adminRole = req.user.role;
+
+    // AUDIT: Super Admin only for bulk operations
+    if (adminRole !== 'super_admin') {
+      return res.status(403).json({ error: 'Bulk approve requires Super Admin privileges' });
+    }
+
+    if (!postIds || !Array.isArray(postIds) || postIds.length === 0) {
+      return res.status(400).json({ error: 'postIds array is required' });
+    }
+
+    if (postIds.length > 50) {
+      return res.status(400).json({ error: 'Maximum 50 posts per bulk approval' });
+    }
+
+    const results = { success: [], failed: [] };
+
+    for (const postId of postIds) {
+      try {
+        const post = await prisma.post.findUnique({ where: { id: postId } });
+        
+        if (!post) {
+          results.failed.push({ postId, reason: 'Post not found' });
+          continue;
+        }
+
+        // Only free content can be bulk approved
+        if (post.contentType !== 'free') {
+          results.failed.push({ postId, reason: 'Only free content can be bulk approved' });
+          continue;
+        }
+
+        const newStatus = approvalType === 'global' ? 'approved_global' : 'approved_profile';
+        
+        await prisma.post.update({
+          where: { id: postId },
+          data: {
+            adminStatus: newStatus,
+            isGlobalFeed: approvalType === 'global',
+            approvedBy: adminId,
+            approvedAt: new Date()
+          }
+        });
+
+        // AUDIT: Log to ReviewHistory
+        await prisma.reviewHistory.create({
+          data: {
+            postId,
+            adminId,
+            action: 'bulk_approved',
+            notes: `Bulk approval - ${approvalType} feed`,
+            previousStatus: post.adminStatus || 'pending',
+            newStatus,
+            metadata: { 
+              batchSize: postIds.length, 
+              approvalType,
+              adminRole
+            }
+          }
+        });
+
+        results.success.push({ postId });
+      } catch (error) {
+        results.failed.push({ postId, reason: error.message });
+      }
+    }
+
+    // AUDIT: Log bulk operation summary
+    console.log(`[AUDIT] Bulk approve completed by admin ${adminId}: ${results.success.length} success, ${results.failed.length} failed`);
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Bulk approve error:', error);
+    res.status(500).json({ error: 'Failed to bulk approve' });
+  }
 });
 
 router.post('/posts/bulk-delete', requirePermission('posts:delete'), async (req, res) => {
   const { postIds } = req.body;
   await prisma.post.deleteMany({ where: { id: { in: postIds } } });
   res.json({ success: true });
+});
+
+// POST /api/admin/posts/:id/reject - Reject content with reason
+router.post('/posts/:id/reject', requirePermission('posts:approve'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.id;
+
+    if (!reason || reason.trim().length === 0) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+
+    const post = await prisma.post.findUnique({ where: { id } });
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Update post status to rejected
+    const updated = await prisma.post.update({
+      where: { id },
+      data: {
+        adminStatus: 'rejected',
+        rejectionReason: reason,
+        rejectedBy: adminId,
+        rejectedAt: new Date()
+      }
+    });
+
+    // Add to review history
+    await prisma.reviewHistory.create({
+      data: {
+        postId: id,
+        adminId,
+        action: 'rejected',
+        notes: reason,
+        previousStatus: post.adminStatus || 'pending',
+        newStatus: 'rejected',
+        metadata: { contentType: post.contentType }
+      }
+    });
+
+    res.json({ success: true, message: 'Content rejected', post: updated });
+  } catch (error) {
+    console.error('Reject post error:', error);
+    res.status(500).json({ error: 'Failed to reject post' });
+  }
+});
+
+// POST /api/admin/posts/:id/approve-global - Approve for global feed
+router.post('/posts/:id/approve-global', requirePermission('posts:approve'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.id;
+
+    const post = await prisma.post.findUnique({ where: { id } });
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (post.contentType === 'creator_page_only') {
+      return res.status(400).json({ error: 'Page-only content cannot go to global feed' });
+    }
+
+    const updated = await prisma.post.update({
+      where: { id },
+      data: {
+        adminStatus: 'approved_global',
+        isGlobalFeed: true,
+        approvedBy: adminId,
+        approvedAt: new Date()
+      }
+    });
+
+    await prisma.reviewHistory.create({
+      data: {
+        postId: id,
+        adminId,
+        action: 'approved_global',
+        previousStatus: post.adminStatus || 'pending',
+        newStatus: 'approved_global',
+        metadata: { contentType: post.contentType }
+      }
+    });
+
+    res.json({ success: true, post: updated });
+  } catch (error) {
+    console.error('Approve global error:', error);
+    res.status(500).json({ error: 'Failed to approve for global feed' });
+  }
+});
+
+// POST /api/admin/posts/:id/approve-profile - Approve for profile only
+router.post('/posts/:id/approve-profile', requirePermission('posts:approve'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.id;
+
+    const post = await prisma.post.findUnique({ where: { id } });
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const updated = await prisma.post.update({
+      where: { id },
+      data: {
+        adminStatus: 'approved_profile',
+        isGlobalFeed: false,
+        approvedBy: adminId,
+        approvedAt: new Date()
+      }
+    });
+
+    await prisma.reviewHistory.create({
+      data: {
+        postId: id,
+        adminId,
+        action: 'approved_profile',
+        previousStatus: post.adminStatus || 'pending',
+        newStatus: 'approved_profile',
+        metadata: { contentType: post.contentType }
+      }
+    });
+
+    res.json({ success: true, post: updated });
+  } catch (error) {
+    console.error('Approve profile error:', error);
+    res.status(500).json({ error: 'Failed to approve for profile' });
+  }
 });
 
 router.post('/posts/:id/lock', requirePermission('posts:update'), async (req, res) => {
@@ -247,14 +460,66 @@ router.get('/verification/pending', requirePermission('verification:read'), asyn
 
 router.post('/verification/:id/approve', requirePermission('verification:approve'), async (req, res) => {
   const { id } = req.params;
-  await prisma.user.update({ where: { id }, data: { verificationStatus: 'approved', isVerified: true } });
-  res.json({ success: true });
+
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      verificationStatus: 'approved',
+      isVerified: true,
+      verifiedAt: new Date(),
+      verifiedBy: req.user?.id || 'admin',
+    },
+  });
+
+  // Send congratulatory inbox message
+  const isCreator = user.userType === 'zls_artist' || user.userType === 'independent_creator';
+  const congratulatoryMessage = isCreator
+    ? `🎉 Congratulations! Your STEEZE creator account has been approved. You can now log in and start building your website-style profile, upload content, and monetize your creativity. Welcome to the future of entertainment!`
+    : `🎉 Congratulations! Your STEEZE VIBES account has been approved. You can now log in and enjoy pure entertainment – music, comedy, dance, drama – from verified creators. No fake accounts. No politics. Just entertainment. Welcome to STEEZE!`;
+
+  await prisma.inboxMessage.create({
+    data: {
+      userId: id,
+      subject: 'Account Approved! 🎉',
+      content: congratulatoryMessage,
+      type: 'system',
+    },
+  });
+
+  console.log(`✅ User approved: ${user.email}`);
+  res.json({ success: true, userType: user.userType, username: user.artistName });
 });
 
 router.post('/verification/:id/reject', requirePermission('verification:reject'), async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
-  await prisma.user.update({ where: { id }, data: { verificationStatus: 'rejected' } });
+
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      verificationStatus: 'rejected',
+      rejectionReason: reason,
+      verifiedBy: req.user?.id || 'admin',
+    },
+  });
+
+  // Send rejection message with retry instructions
+  await prisma.inboxMessage.create({
+    data: {
+      userId: id,
+      subject: 'Registration Update',
+      content: `Your registration was not approved. Reason: ${reason}\n\nTo retry, please fix the issues and submit a new registration at steeze.zeustechafrica.com/signup. If you believe this is an error, please contact support at support@steeze.com.\n\nWe look forward to having you on STEEZE!`,
+      type: 'system',
+    },
+  });
+
+  console.log(`❌ User rejected: ${user.email} - Reason: ${reason}`);
   res.json({ success: true });
 });
 

@@ -1,298 +1,140 @@
-import express from "express";
-import { PrismaClient } from "@prisma/client";
-import { authenticateAny as auth } from "../middleware/auth.js";
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { interactionRateLimiter } from '../middleware/rateLimiter.js';
+import { 
+  getPersonalizedFeed, 
+  trackInteraction, 
+  getTrendingFeed,
+  healthCheck
+} from '../services/recommendation.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// GET /api/feed/interactions — return liked and saved post IDs for the current user
-router.get("/interactions", auth, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const [likedInteractions, reposts] = await Promise.all([
-      prisma.postInteraction.findMany({
-        where: { userId, type: "like" },
-        select: { postId: true },
-      }),
-      prisma.repost.findMany({
-        where: { repostedBy: userId },
-        select: { originalPostId: true },
-      }),
-    ]);
-
-    const liked = likedInteractions.map((i) => i.postId);
-    const saved = reposts.map((r) => r.originalPostId);
-
-    res.json({ success: true, liked, saved });
-  } catch (error) {
-    console.error("Feed interactions error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch interactions" });
-  }
+// AUDIT: Health check endpoint for monitoring
+router.get('/feed/health', async (req, res) => {
+  const health = await healthCheck();
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
-// GET /api/feed/for-you — algorithm-based feed
-router.get("/for-you", auth, async (req, res) => {
+// GET /api/feed/for-you - Personalized For You feed
+router.get('/feed/for-you', authenticateToken, async (req, res) => {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  
   try {
     const userId = req.user.id;
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const take = parseInt(limit);
-
-    // Get user's liked categories for preference-based ranking
-    const userLikes = await prisma.postInteraction.findMany({
-      where: { userId, type: "like" },
-      include: { post: { select: { category: true } } },
-      take: 50,
-    });
-
-    const categoryPreferences = [
-      ...new Set(userLikes.map((l) => l.post?.category).filter(Boolean)),
-    ];
-
-    // Check if user is under 18 for age filtering
-    const viewerAge = req.user?.birthDate
-      ? Math.floor((new Date().getTime() - new Date(req.user.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-      : 99;
-    const ageRestrictionFilter = viewerAge < 18 ? { isAgeRestricted: false } : {};
-
-    // Get original posts
-    const originalPosts = await prisma.post.findMany({
-      where: {
-        adminStatus: "approved_global",
-        ...ageRestrictionFilter,
-        ...(categoryPreferences.length > 0
-          ? { category: { in: categoryPreferences } }
-          : {}),
+    const { limit = 30, offset = 0 } = req.query;
+    
+    const parsedLimit = Math.min(100, parseInt(limit) || 30);
+    const parsedOffset = parseInt(offset) || 0;
+    
+    // Get user's seen posts to avoid duplicates
+    const seenPosts = await prisma.userInteraction.findMany({
+      where: { 
+        userId, 
+        type: { in: ['view', 'skip'] }
       },
-      skip,
-      take,
-      include: {
-        creator: {
-          select: { id: true, artistName: true, username: true, profilePicUrl: true },
+      select: { postId: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200
+    });
+    
+    const excludeIds = seenPosts.map(p => p.postId);
+    
+    const feed = await getPersonalizedFeed(userId, parsedLimit, parsedOffset, excludeIds, requestId);
+    
+    // AUDIT: Non-blocking impression tracking
+    for (const post of feed) {
+      prisma.userInteraction.upsert({
+        where: {
+          userId_postId_type: {
+            userId,
+            postId: post.id,
+            type: 'impression'
+          }
         },
-        _count: { select: { interactions: true, comments: true, reposts: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    // Get reposts
-    const reposts = await prisma.repost.findMany({
-      where: {},
-      skip,
-      take,
-      include: {
-        originalPost: {
-          include: {
-            creator: {
-              select: { id: true, artistName: true, username: true, profilePicUrl: true },
-            },
-          },
-        },
-        repostedByUser: {
-          select: { id: true, artistName: true, username: true, profilePicUrl: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    // Format reposts to look like posts with attribution
-    const formattedReposts = reposts.map((repost) => ({
-      id: repost.id,
-      type: repost.originalPost.type,
-      title: repost.originalPost.title,
-      description: repost.originalPost.description,
-      mediaUrl: repost.originalPost.mediaUrl,
-      thumbnail: repost.originalPost.thumbnailUrl,
-      content: repost.originalPost.content,
-      caption: repost.repostComment,
-      category: repost.originalPost.category,
-      createdAt: repost.createdAt,
-      creator: repost.originalPost.creator,
-      creatorId: repost.originalPost.creatorId,
-      likeCount: 0,
-      commentCount: 0,
-      saveCount: 1,
-      isRepost: true,
-      repostedBy: repost.repostedByUser,
-      originalCreator: repost.originalPost.creator,
-    }));
-
-    // Combine and sort by date
-    const allPosts = [
-      ...originalPosts.map((p) => ({
-        ...p,
-        likeCount: p._count?.interactions ?? 0,
-        commentCount: p._count?.comments ?? 0,
-        saveCount: p._count?.reposts ?? 0,
-        isRepost: false,
-      })),
-      ...formattedReposts,
-    ];
-    allPosts.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    const paginatedPosts = allPosts.slice(skip, skip + take);
-
-    res.json({
-      success: true,
-      posts: paginatedPosts,
-      hasMore: allPosts.length > skip + take,
-    });
-  } catch (error) {
-    console.error("For-you feed error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch feed" });
-  }
-});
-
-// GET /api/feed/following — posts from followed creators
-router.get("/following", auth, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const take = parseInt(limit);
-
-    const following = await prisma.follow.findMany({
-      where: { followerId: userId },
-      select: { followingId: true },
-    });
-    const followingIds = following.map((f) => f.followingId);
-
-    if (followingIds.length === 0) {
-      return res.json({ success: true, posts: [], hasMore: false });
+        update: {},
+        create: {
+          userId,
+          postId: post.id,
+          type: 'impression',
+          weight: 0.1
+        }
+      }).catch(() => {});
     }
-
-    const originalPosts = await prisma.post.findMany({
-      where: { creatorId: { in: followingIds }, adminStatus: "approved_global" },
-      skip,
-      take,
-      include: {
-        creator: {
-          select: { id: true, artistName: true, username: true, profilePicUrl: true },
-        },
-        _count: { select: { interactions: true, comments: true, reposts: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const repostsFromFollowed = await prisma.repost.findMany({
-      where: { repostedBy: { in: followingIds } },
-      skip,
-      take,
-      include: {
-        originalPost: {
-          include: {
-            creator: {
-              select: { id: true, artistName: true, username: true, profilePicUrl: true },
-            },
-          },
-        },
-        repostedByUser: {
-          select: { id: true, artistName: true, username: true, profilePicUrl: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const formattedReposts = repostsFromFollowed.map((repost) => ({
-      id: repost.id,
-      type: repost.originalPost.type,
-      title: repost.originalPost.title,
-      mediaUrl: repost.originalPost.mediaUrl,
-      thumbnail: repost.originalPost.thumbnailUrl,
-      category: repost.originalPost.category,
-      createdAt: repost.createdAt,
-      creator: repost.originalPost.creator,
-      creatorId: repost.originalPost.creatorId,
-      likeCount: 0,
-      commentCount: 0,
-      saveCount: 1,
-      isRepost: true,
-      repostedBy: repost.repostedByUser,
-      originalCreator: repost.originalPost.creator,
-    }));
-
-    const allPosts = [
-      ...originalPosts.map((p) => ({
-        ...p,
-        likeCount: p._count?.interactions ?? 0,
-        commentCount: p._count?.comments ?? 0,
-        saveCount: p._count?.reposts ?? 0,
-        isRepost: false,
-      })),
-      ...formattedReposts,
-    ];
-    allPosts.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    const paginatedPosts = allPosts.slice(0, take);
-
-    res.json({
-      success: true,
-      posts: paginatedPosts,
-      hasMore: allPosts.length > take,
+    
+    res.json({ 
+      success: true, 
+      feed, 
+      hasMore: feed.length === parsedLimit,
+      total: feed.length,
+      responseTime: Date.now() - startTime
     });
   } catch (error) {
-    console.error("Following feed error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch feed" });
+    console.error('For You feed error:', error);
+    res.status(500).json({ error: 'Failed to load feed' });
   }
 });
 
-// GET /api/feed/:topic — topic-based feed (music, comedy, dance, drama)
-router.get("/:topic", auth, async (req, res) => {
+// POST /api/feed/interaction - Track user interaction with rate limiting
+router.post('/feed/interaction', authenticateToken, interactionRateLimiter, async (req, res) => {
   try {
-    const { topic } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const take = parseInt(limit);
-
-    // Map frontend feed IDs to category names
-    const topicCategoryMap = {
-      music: "music",
-      comedy: "comedy",
-      dance: "dance",
-      drama: "drama",
-    };
-
-    const category = topicCategoryMap[topic];
-    if (!category) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid topic" });
+    const userId = req.user.id;
+    const { postId, type, watchTime } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || null;
+    const userAgent = req.headers['user-agent'] || null;
+    
+    // AUDIT: Validate required fields
+    if (!postId || !type) {
+      return res.status(400).json({ error: 'postId and type are required' });
     }
-
-    const posts = await prisma.post.findMany({
-      where: { category, adminStatus: "approved_global" },
-      skip,
-      take,
-      include: {
-        creator: {
-          select: { id: true, artistName: true, username: true, profilePicUrl: true },
-        },
-        _count: { select: { interactions: true, comments: true, reposts: true } },
-      },
-      orderBy: { createdAt: "desc" },
+    
+    // AUDIT: Validate type against whitelist
+    const validTypes = ['view', 'like', 'comment', 'share', 'save', 'skip'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: 'Invalid interaction type' });
+    }
+    
+    // AUDIT: Validate post exists
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true }
     });
-
-    const formatted = posts.map((p) => ({
-      ...p,
-      likeCount: p._count?.interactions ?? 0,
-      commentCount: p._count?.comments ?? 0,
-      saveCount: p._count?.reposts ?? 0,
-      isRepost: false,
-    }));
-
-    res.json({
-      success: true,
-      posts: formatted,
-      hasMore: formatted.length === take,
-    });
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const success = await trackInteraction(userId, postId, type, watchTime, ipAddress, userAgent);
+    
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Failed to track interaction' });
+    }
   } catch (error) {
-    console.error("Topic feed error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch feed" });
+    console.error('Track interaction error:', error);
+    res.status(500).json({ error: 'Failed to track interaction' });
+  }
+});
+
+// GET /api/feed/trending - Trending feed (fallback for new users)
+router.get('/feed/trending', optionalAuth, async (req, res) => {
+  try {
+    const { limit = 30, offset = 0 } = req.query;
+    const parsedLimit = Math.min(100, parseInt(limit) || 30);
+    const parsedOffset = parseInt(offset) || 0;
+    
+    const feed = await getTrendingFeed(parsedLimit, parsedOffset);
+    
+    res.json({ success: true, feed, hasMore: feed.length === parsedLimit });
+  } catch (error) {
+    console.error('Trending feed error:', error);
+    res.status(500).json({ error: 'Failed to load trending' });
   }
 });
 
