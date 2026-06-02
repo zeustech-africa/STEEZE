@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Shield, AlertTriangle, Lock, Fingerprint, Loader2 } from "lucide-react";
+import Captcha from "@/components/Captcha";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -16,11 +19,17 @@ export default function AdminLoginPage() {
     setError("");
     setLoading(true);
 
+    if (!captchaToken) {
+      setError("Please complete the CAPTCHA verification");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, cfTurnstileResponse: captchaToken }),
       });
 
       const data = await res.json();
@@ -103,6 +112,16 @@ export default function AdminLoginPage() {
             />
           </div>
 
+          <div className="flex justify-center my-4">
+            <Captcha
+              onVerify={setCaptchaToken}
+              onError={() => setCaptchaError(true)}
+            />
+          </div>
+          {captchaError && (
+            <p className="text-red-400 text-xs text-center mt-1">CAPTCHA verification failed. Please try again.</p>
+          )}
+
           {error && (
             <div className="p-3 bg-red-500/20 border border-red-500 rounded-lg" role="alert">
               <p className="text-red-400 text-sm text-center">{error}</p>
@@ -111,7 +130,7 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !captchaToken}
             className="w-full py-3 bg-red-600/20 border border-red-500 text-red-400 font-bold rounded-full hover:bg-red-600 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <Fingerprint size={18} />}
