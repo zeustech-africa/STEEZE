@@ -24,6 +24,7 @@ export async function verifyTurnstile(token, ip) {
     });
 
     const data = await response.json();
+    console.log('Cloudflare Turnstile response:', JSON.stringify(data, null, 2));
     return { success: data.success, error: data['error-codes']?.join(', ') };
   } catch (error) {
     console.error('CAPTCHA verification error:', error);
