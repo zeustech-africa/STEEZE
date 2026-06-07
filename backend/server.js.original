@@ -48,15 +48,6 @@ import adminAppealsRoutes from './routes/admin/appeals.js';
 import adminCopyrightRoutes from './routes/admin/copyright.js';
 import adminLegalRoutes from './routes/admin/legal.js';
 import adminStatsRoutes from './routes/admin/stats.js';
-import adminAnalyticsRoutes from './routes/admin/analytics.js';
-import adminFraudRoutes from './routes/admin/fraud.js';
-import adminFeatureRoutes from './routes/admin/features.js';
-import adminAIModerationRoutes from './routes/admin/aiModeration.js';
-import adminMediaOpsRoutes from './routes/admin/mediaOps.js';
-import adminSearchRoutes from './routes/admin/search.js';
-import adminRetentionRoutes from './routes/admin/retention.js';
-import adminAnalyticsV2Routes from './routes/admin/analyticsV2.js';
-import adminContentRoutes from './routes/admin/content.js';
 import authRoutes from './routes/auth.js';
 import creatorsRoutes from './routes/creators.js';
 import vibesRoutes from './routes/vibes.js';
@@ -77,16 +68,7 @@ app.use('/api/admin/appeals', adminAppealsRoutes);
 app.use('/api/admin/copyright', adminCopyrightRoutes);
 app.use('/api/admin/legal', adminLegalRoutes);
 app.use('/api/admin/stats', adminStatsRoutes);
-app.use('/api/admin/analytics', adminAnalyticsRoutes);
-app.use('/api/admin/fraud', adminFraudRoutes);
-app.use('/api/admin/features', adminFeatureRoutes);
-app.use('/api/admin/ai-moderation', adminAIModerationRoutes);
-app.use('/api/admin/media', adminMediaOpsRoutes);
-app.use('/api/admin/search', adminSearchRoutes);
-app.use('/api/admin/retention', adminRetentionRoutes);
-app.use('/api/admin/analytics-v2', adminAnalyticsV2Routes);
-app.use('/api/admin/fraud', adminFraudRoutes);
-app.use('/api/admin/content', adminContentRoutes);
+app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/auth', authRoutes);
@@ -101,19 +83,6 @@ app.use('/api/subscription-paystack', subscriptionPaystackRoutes);
 app.use('/api/webhooks', paystackWebhookRoutes);
 
 // Health check
-
-// Public feature flag check (no auth required)
-app.get('/api/features/:key', async (req, res) => {
-  try {
-    const { key } = req.params;
-    const { isFeatureEnabled } = await import('./services/featureFlagService.js');
-    const enabled = await isFeatureEnabled(key);
-    res.json({ success: true, key, enabled });
-  } catch (error) {
-    console.error('Check feature error:', error);
-    res.status(500).json({ success: false, message: 'Failed to check feature' });
-  }
-});
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

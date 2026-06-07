@@ -58,7 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     try {
       const user = JSON.parse(userStr);
-      if (user.role !== "admin") {
+      if (user.role !== "admin" && user.role !== "super_admin") {
         router.push("/");
         return;
       }
@@ -128,7 +128,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           ))}
           <button
-            onClick={() => {
+            onClick={async () => {
+              const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+              try {
+                await fetch(`${API_URL}/api/auth/logout`, {
+                  method: "POST",
+                  credentials: "include",
+                });
+              } catch (e) {
+                console.error("Logout error:", e);
+              }
               localStorage.clear();
               router.push("/login");
             }}

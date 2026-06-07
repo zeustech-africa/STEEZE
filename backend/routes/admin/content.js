@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 // ============================================
 
 // Get all pending content (requires admin)
-router.get("/admin/content/pending", authenticateAdmin, async (req, res) => {
+router.get("/pending", authenticateAdmin, async (req, res) => {
   try {
     const { type, limit = 50, offset = 0 } = req.query;
 
@@ -25,7 +25,7 @@ router.get("/admin/content/pending", authenticateAdmin, async (req, res) => {
         creator: {
           select: {
             id: true,
-            fullName: true,
+            artistName: true,
             artistName: true,
             email: true,
             profilePicUrl: true
@@ -47,7 +47,7 @@ router.get("/admin/content/pending", authenticateAdmin, async (req, res) => {
 });
 
 // Get single pending content
-router.get("/admin/content/pending/:postId", authenticateAdmin, async (req, res) => {
+router.get("/pending/:postId", authenticateAdmin, async (req, res) => {
   try {
     const { postId } = req.params;
 
@@ -57,7 +57,7 @@ router.get("/admin/content/pending/:postId", authenticateAdmin, async (req, res)
         creator: {
           select: {
             id: true,
-            fullName: true,
+            artistName: true,
             artistName: true,
             email: true,
             profilePicUrl: true,
@@ -83,7 +83,7 @@ router.get("/admin/content/pending/:postId", authenticateAdmin, async (req, res)
 // ============================================
 
 // Approve for Global Feed
-router.post("/admin/content/:postId/approve-global", authenticateAdmin, async (req, res) => {
+router.post("/:postId/approve-global", authenticateAdmin, async (req, res) => {
   try {
     const { postId } = req.params;
     const adminId = req.user.id;
@@ -117,7 +117,7 @@ router.post("/admin/content/:postId/approve-global", authenticateAdmin, async (r
         targetType: "post",
         targetId: postId,
         targetTitle: post.title,
-        details: { creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.fullName }
+        details: { creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.username }
       }
     });
 
@@ -139,7 +139,7 @@ router.post("/admin/content/:postId/approve-global", authenticateAdmin, async (r
 });
 
 // Approve for Profile Only
-router.post("/admin/content/:postId/approve-profile", authenticateAdmin, async (req, res) => {
+router.post("/:postId/approve-profile", authenticateAdmin, async (req, res) => {
   try {
     const { postId } = req.params;
     const adminId = req.user.id;
@@ -172,7 +172,7 @@ router.post("/admin/content/:postId/approve-profile", authenticateAdmin, async (
         targetType: "post",
         targetId: postId,
         targetTitle: post.title,
-        details: { creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.fullName }
+        details: { creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.username }
       }
     });
 
@@ -193,7 +193,7 @@ router.post("/admin/content/:postId/approve-profile", authenticateAdmin, async (
 });
 
 // Reject content
-router.post("/admin/content/:postId/reject", authenticateAdmin, async (req, res) => {
+router.post("/:postId/reject", authenticateAdmin, async (req, res) => {
   try {
     const { postId } = req.params;
     const { reason } = req.body;
@@ -225,7 +225,7 @@ router.post("/admin/content/:postId/reject", authenticateAdmin, async (req, res)
         targetType: "post",
         targetId: postId,
         targetTitle: post.title,
-        details: { reason, creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.fullName }
+        details: { reason, creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.username }
       }
     });
 
@@ -250,7 +250,7 @@ router.post("/admin/content/:postId/reject", authenticateAdmin, async (req, res)
 // ============================================
 
 // Delete any content (bypasses pending status)
-router.delete("/admin/content/:postId", authenticateAdmin, async (req, res) => {
+router.delete("/:postId", authenticateAdmin, async (req, res) => {
   try {
     const { postId } = req.params;
     const adminId = req.user.id;
@@ -277,7 +277,7 @@ router.delete("/admin/content/:postId", authenticateAdmin, async (req, res) => {
         targetType: "post",
         targetId: postId,
         targetTitle: postTitle,
-        details: { creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.fullName }
+        details: { creatorId: post.creatorId, creatorName: post.creator.artistName || post.creator.username }
       }
     });
 
@@ -293,7 +293,7 @@ router.delete("/admin/content/:postId", authenticateAdmin, async (req, res) => {
 // ============================================
 
 // Delete any comment
-router.delete("/admin/comments/:commentId", authenticateAdmin, async (req, res) => {
+router.delete("/comments/:commentId", authenticateAdmin, async (req, res) => {
   try {
     const { commentId } = req.params;
     const adminId = req.user.id;
@@ -321,7 +321,7 @@ router.delete("/admin/comments/:commentId", authenticateAdmin, async (req, res) 
         targetType: "comment",
         targetId: commentId,
         targetTitle: postTitle,
-        details: { commentText, userId: comment.userId, userName: comment.user?.fullName }
+        details: { commentText, userId: comment.userId, userName: comment.user?.username }
       }
     });
 
@@ -337,7 +337,7 @@ router.delete("/admin/comments/:commentId", authenticateAdmin, async (req, res) 
 // ============================================
 
 // Get admin audit logs
-router.get("/admin/audit-logs", authenticateAdmin, async (req, res) => {
+router.get("/audit-logs", authenticateAdmin, async (req, res) => {
   try {
     const { limit = 100, offset = 0, action } = req.query;
 
@@ -363,7 +363,7 @@ router.get("/admin/audit-logs", authenticateAdmin, async (req, res) => {
 });
 
 // Get content approval stats
-router.get("/admin/content/stats", authenticateAdmin, async (req, res) => {
+router.get("/stats", authenticateAdmin, async (req, res) => {
   try {
     const [pending, approvedGlobal, approvedProfile, rejected] = await Promise.all([
       prisma.post.count({ where: { status: "pending" } }),

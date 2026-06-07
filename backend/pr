@@ -1,0 +1,77 @@
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('🔧 Admin user seed script starting...');
+  
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@steeze.com';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminUsername = process.env.ADMIN_USERNAME || 'super_admin';
+  
+  if (!adminPassword) {
+    console.error('❌ ADMIN_PASSWORD environment variable is required');
+    console.error('   Run: ADMIN_PASSWORD="YourSecurePassword" node prisma/seed-admin.js');
+    process.exit(1);
+  }
+  
+  // Check if admin already exists
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail }
+  });
+  
+  if (existingAdmin) {
+    console.log(`✅ Admin user already exists: ${adminEmail}`);
+    console.log(`   Role: ${existingAdmin.role}, userType: ${existingAdmin.userType}`);
+    
+    // Fix the userType if it's not 'admin' (for existing admin records from old seeds)
+    if (existingAdmin.userType !== 'admin') {
+      await prisma.user.update({
+        where: { id: existingAdmin.id },
+        data: { userType: 'admin' }
+      });
+      console.log(`   🔄 Updated userType from '${existingAdmin.userType}' to 'admin'`);
+    }
+    return;
+  }
+  
+  // Hash the password
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+  
+  // Create admin user
+  const admin = await prisma.user.create({
+    data: {
+      email: adminEmail,
+      passwordHash: hashedPassword,
+      username: adminUsername,
+      role: 'admin',
+      userType: 'admin',
+      isVerified: true,
+      verificationStatus: 'approved',
+      isBanned: false,
+      isSuspended: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  });
+  
+  console.log(`✅ Admin user created successfully!`);
+  console.log(`   Email: ${admin.email}`);
+  console.log(`   Role: ${admin.role}`);
+  console.log(`   userType: ${admin.userType}`);
+  console.log(`   ID: ${admin.id}`);
+}
+
+main()
+  .catch((e) => {
+    console.error('❌ Error creating admin user:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

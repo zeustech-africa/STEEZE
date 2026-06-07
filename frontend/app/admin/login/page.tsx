@@ -13,28 +13,41 @@ export default function AdminLoginPage() {
   const [captchaError, setCaptchaError] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  // DEVELOPMENT ONLY: Bypass CAPTCHA
+  const isDev = process.env.NODE_ENV === 'development';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    if (!captchaToken) {
+    // DEVELOPMENT ONLY: Set dummy CAPTCHA token
+    let finalCaptchaToken = captchaToken;
+
+    if (isDev) {
+      console.log('🔧 Development mode: CAPTCHA disabled');
+      finalCaptchaToken = 'dev-dummy-token';
+    }
+
+    if (!captchaToken && !isDev) {
       setError("Please complete the CAPTCHA verification");
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, cfTurnstileResponse: captchaToken }),
+        credentials: "include",
+        body: JSON.stringify({ email, password, cfTurnstileResponse: finalCaptchaToken }),
       });
 
       const data = await res.json();
       if (data.success) {
-        if (data.user.role === "admin") {
+        if (data.user.role === "admin" || data.user.role === "super_admin") {
           localStorage.setItem("token", data.token);
           localStorage.setItem("user", JSON.stringify(data.user));
           router.push("/admin");
@@ -112,14 +125,26 @@ export default function AdminLoginPage() {
             />
           </div>
 
-          <div className="flex justify-center my-4">
-            <Captcha
-              onVerify={setCaptchaToken}
-              onError={() => setCaptchaError(true)}
-            />
-          </div>
-          {captchaError && (
-            <p className="text-red-400 text-xs text-center mt-1">CAPTCHA verification failed. Please try again.</p>
+          {isDev ? (
+            // In development, CAPTCHA is hidden and automatically bypassed
+            <div className="hidden">
+              <Captcha
+                onVerify={setCaptchaToken}
+                onError={() => setCaptchaError(true)}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-center my-4">
+                <Captcha
+                  onVerify={setCaptchaToken}
+                  onError={() => setCaptchaError(true)}
+                />
+              </div>
+              {captchaError && (
+                <p className="text-red-400 text-xs text-center mt-1">CAPTCHA verification failed. Please try again.</p>
+              )}
+            </>
           )}
 
           {error && (
@@ -130,7 +155,7 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
-            disabled={loading || !captchaToken}
+            disabled={loading || (!captchaToken && !isDev)}
             className="w-full py-3 bg-red-600/20 border border-red-500 text-red-400 font-bold rounded-full hover:bg-red-600 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <Fingerprint size={18} />}

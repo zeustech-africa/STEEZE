@@ -125,6 +125,7 @@ req.headers['x-forwarded-for'] || 'unknown' }),
 
     res.json({
       success: true,
+      token: accessToken,
       user: {
         id: user.id,
         fullName: user.artistName || user.email,
@@ -132,7 +133,8 @@ req.headers['x-forwarded-for'] || 'unknown' }),
         userType: user.userType,
         username: user.artistName,
         artistName: user.artistName,
-        profilePicUrl: user.profilePicUrl
+        profilePicUrl: user.profilePicUrl,
+        role: user.role,
       }
     });
   } catch (error) {

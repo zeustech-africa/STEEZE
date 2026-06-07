@@ -36,7 +36,35 @@ model User {
   isVerified           Boolean   @default(false)
   verificationStatus   String    @default("pending")
   isBanned             Boolean   @default(false)
+  isPermanentlyBanned  Boolean   @default(false)
   isSuspended          Boolean   @default(false)
+  suspendedUntil       DateTime?
+  temporaryBanUntil    DateTime?
+  temporaryBanReason   String?
+  softLocked           Boolean   @default(false)
+  softLockReason       String?
+  accountFrozen        Boolean   @default(false)
+  accountFrozenReason  String?
+  monetizationEnabled  Boolean   @default(true)
+  fraudRiskScore       Int       @default(0)
+
+  // VIP Status
+  vipStatus         Boolean   @default(false)
+  vipExpiresAt      DateTime?
+  vipApprovedBy     String?
+  vipApprovedAt     DateTime?
+
+  // Monetization Status
+  monetizationStatus           String   @default("pending") // pending, approved, suspended, revoked
+  monetizationApprovedAt       DateTime?
+  monetizationApprovedBy       String?
+  monetizationSuspendedAt      DateTime?
+  monetizationSuspendedBy      String?
+  monetizationSuspendedReason  String?
+  monetizationRevokedAt        DateTime?
+  monetizationRevokedBy        String?
+  monetizationRevokedReason    String?
+
   isPrivate            Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -147,12 +175,19 @@ model User {
   contentReports       ContentReport[]
   adminUser            AdminUser?
   violations           Violation[]
-  appeals              Appeal[]
+  appeals              Appeal[]              @relation("AppealUser")
+  appealsAdministered  Appeal[]              @relation("AppealAdmin")
   shadowBan            ShadowBan?
   payouts              Payout[]
   dataExportRequests   DataExportRequest[]
   parentalConsentsAsChild  ParentalConsent[]  @relation("ParentalConsentChild")
   parentalConsentsAsParent ParentalConsent[]  @relation("ParentalConsentParent")
+  adminNotesOnUser         AdminNote[]        @relation("AdminNoteUser")
+  adminNotesByAdmin        AdminNote[]        @relation("AdminNoteAdmin")
+  strikes                  UserStrike[]       @relation("StrikeUser")
+  strikesIssued            UserStrike[]       @relation("StrikeIssuer")
+  featureAccess            UserFeatureAccess[]
+  aiModerationLogs         AIModerationLog[]
   
   @@index([subscriptionTier])
   @@index([subscriptionStatus])
@@ -169,6 +204,732 @@ model User {
   savedPosts           SavedPost[]
   directPurchases      DirectPurchase[]
   postsAsOriginalCreator Post[]           @relation("OriginalCreator")
+  moderator            Moderator?
+  supportTickets       SupportTicket[] @relation("TicketUser")
+  assignedTickets      SupportTicket[] @relation("TicketAssignee")
+  ticketMessages       TicketMessage[]
+  fraudAlerts            FraudAlert[]           @relation("FraudAlertUser")
+  investigatedAlerts     FraudAlert[]           @relation("FraudAlertInvestigator")
+  revenueFraudAlerts     RevenueFraudAlert[]    @relation("RevenueFraudUser")
+  investigatedRevenueAlerts RevenueFraudAlert[] @relation("RevenueFraudInvestigator")
+  streamingFraudLogs     StreamingFraudLog[]    @relation("StreamingFraudLogUser")
+  withdrawalFraudLogs    WithdrawalFraudLog[]   @relation("WithdrawalFraudLogUser")
+  searchLogs             SearchLog[]
+}
+
+model AdminNote {
+  id        String   @id @default(cuid())
+  userId    String
+  adminId   String
+  note      String   @db.Text
+  type      String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User @relation("AdminNoteUser", fields: [userId], references: [id], onDelete: Cascade)
+  admin User @relation("AdminNoteAdmin", fields: [adminId], references: [id])
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+model UserStrike {
+  id              String   @id @default(cuid())
+  userId          String
+  reason          String   @db.Text
+  type            String   // warning, restriction_24h, restriction_7d, monetization_removed, permanent_ban
+  severity        Int      @default(1) // 1-5
+  status          String   @default("active") // active, expired, appealed, removed
+  expiresAt       DateTime?
+  issuedBy        String
+  issuedAt        DateTime @default(now())
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  resolutionNote  String?  @db.Text
+  appealId        String?
+
+  user   User @relation("StrikeUser", fields: [userId], references: [id], onDelete: Cascade)
+  issuer User @relation("StrikeIssuer", fields: [issuedBy], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+model StrikeRule {
+  id              String   @id @default(cuid())
+  strikeNumber    Int      @unique
+  action          String   // warning, restriction_24h, restriction_7d, monetization_removed, permanent_ban
+  durationHours   Int?
+  description     String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Copyright/DMCA Management System
+model CopyrightClaim {
+  id                String   @id @default(cuid())
+  claimantEmail     String   // Email of person filing claim
+  claimantName      String   // Full name of claimant
+  claimantPhone     String?  // Optional phone number
+  originalWorkUrl   String?  // URL to original copyrighted work
+  infringingUrl     String   // URL of infringing content on STEEZE
+  description       String   @db.Text // Description of copyrighted work
+  status            String   @default("pending") // pending, approved, rejected, resolved, counter_notice
+  action            String?  // takedown, warn, dismiss
+  counterNotice     String?  @db.Text // User's counter-notice if disputed
+  adminNotes        String?  @db.Text
+  resolutionNote    String?  @db.Text
+  dmcaRequestId     String?  // DMCA request identifier
+  createdAt         DateTime @default(now())
+  resolvedAt        DateTime?
+  resolvedBy        String?
+  contentId         String?  // ID of the content being claimed (post/video/audio)
+  contentType       String?  // post, video, audio, image
+  
+  @@index([status])
+  @@index([createdAt])
+  @@index([claimantEmail])
+}
+
+// Legal & Compliance Request System (GDPR, POPIA, Data Deletion)
+model LegalRequest {
+  id                String   @id @default(cuid())
+  type              String   // privacy, deletion, correction, restriction, portability, objection
+  userId            String?
+  userEmail         String   // Email of requester (even if account deleted)
+  requestDetails    String   @db.Text
+  status            String   @default("pending") // pending, processing, completed, rejected, expired
+  priority          String   @default("normal") // normal, high, urgent, legal_hold
+  assignedTo        String?  // Admin ID handling this request
+  assignedToEmail   String?  // Admin email
+  adminNotes        String?  @db.Text
+  resolution        String?  @db.Text
+  responseData      Json?    // Data export or response content
+  completedAt       DateTime?
+  completedBy       String?
+  legalHoldActive   Boolean  @default(false) // Is user under legal hold?
+  legalHoldReason   String?  @db.Text
+  legalHoldExpires  DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([status])
+  @@index([type])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([legalHoldActive])
+}
+
+// Evidence Preservation System (for legal cases and investigations)
+model EvidencePreservation {
+  id                String   @id @default(cuid())
+  caseId            String   // Unique case identifier (e.g., LEGAL-2024-001)
+  userId            String?  // User whose data is preserved
+  contentId         String?  // Specific content ID (post, comment, message)
+  contentType       String   // user_data, post, comment, message, transaction, audit_log
+  reason            String   @db.Text // Why evidence is being preserved
+  status            String   @default("active") // active, released, expired
+  preservedBy       String   // Admin who placed the hold
+  preservedByName   String?  // Admin name for reference
+  expiresAt         DateTime? // Auto-expiration date
+  releasedAt        DateTime?
+  releasedBy        String?
+  releaseReason     String?  @db.Text
+  legalCaseRef      String?  // Reference to legal case number
+  notes             String?  @db.Text
+  preservedData     Json?    // Snapshot of preserved data
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([caseId])
+  @@index([userId])
+  @@index([status])
+  @@index([legalCaseRef])
+  @@index([expiresAt])
+}
+
+// Daily Analytics & Health Tracking
+model DailyStats {
+  id                    String   @id @default(cuid())
+  date                  DateTime @unique
+  // Registration stats
+  newRegistrations      Int      @default(0)
+  totalRegistrations    Int      @default(0)
+  // Upload stats
+  newUploads            Int      @default(0)
+  totalUploads          Int      @default(0)
+  // Revenue stats (in cents/currency unit)
+  newRevenue            Float    @default(0)
+  totalRevenue          Float    @default(0)
+  // Violation stats
+  activeViolations      Int      @default(0)
+  // Health monitoring
+  emailHealth           String   @default("unknown")  // healthy, degraded, down
+  notificationHealth    String   @default("unknown")  // healthy, degraded, down
+  lastEmailCheck        DateTime?
+  lastNotificationCheck DateTime?
+  // Metadata
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([date])
+  @@index([createdAt])
+}
+
+// Moderation Automation Engine
+model AutomationRule {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String?  @db.Text
+  triggerType     String   // spam_detected, offensive_content, duplicate_upload, bot_detected, high_risk_score, repeat_offender
+  condition       Json     // JSON conditions for when rule applies
+  action          String   // remove_post, hide_comment, flag_content, suspend_account, escalate, send_notification
+  actionParams    Json?    // Parameters for the action (e.g., { "suspensionHours": 24 })
+  priority        Int      @default(0) // Higher priority rules run first
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([triggerType])
+  @@index([isActive])
+  @@index([priority])
+}
+
+model AutomationLog {
+  id              String   @id @default(cuid())
+  ruleId          String
+  ruleName        String
+  triggerType     String
+  action          String
+  targetType      String   // post, comment, user
+  targetId        String
+  details         Json?    // Additional details about the action
+  status          String   @default("success") // success, failed, skipped
+  errorMessage    String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([ruleId])
+  @@index([targetType])
+  @@index([targetId])
+  @@index([createdAt])
+}
+
+model FlaggedContent {
+  id              String   @id @default(cuid())
+  contentId       String
+  contentType     String   // post, comment, user
+  flagType        String   // spam, offensive, duplicate, bot, high_risk
+  confidence      Float    // 0-1 confidence score
+  resolved        Boolean  @default(false)
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([contentId])
+  @@index([flagType])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+// Moderator Management System
+model Moderator {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  role              String   @default("moderator") // moderator, senior_moderator, admin, super_admin
+  department        String?  // content, user, fraud, legal
+  hireDate          DateTime @default(now())
+  isActive          Boolean  @default(true)
+  lastActive        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metrics ModeratorMetric?
+  actions ModeratorAction[]
+
+  @@index([userId])
+  @@index([role])
+  @@index([isActive])
+}
+
+model ModeratorMetric {
+  id                    String   @id @default(cuid())
+  moderatorId           String   @unique
+  totalCasesHandled     Int      @default(0)
+  reportsResolved       Int      @default(0)
+  appealsResolved       Int      @default(0)
+  verificationsReviewed Int      @default(0)
+  contentReviewed       Int      @default(0)
+  warningsIssued        Int      @default(0)
+  bansIssued            Int      @default(0)
+  suspensionsIssued     Int      @default(0)
+  appealsOverturned     Int      @default(0)
+  averageResponseTime   Float?   // in hours
+  averageResolutionTime Float?   // in hours
+  weeklyMetrics         Json?    // Stores weekly performance data
+  monthlyMetrics        Json?    // Stores monthly performance data
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  moderator Moderator @relation(fields: [moderatorId], references: [id], onDelete: Cascade)
+
+  @@index([moderatorId])
+}
+
+model ModeratorAction {
+  id                String   @id @default(cuid())
+  moderatorId       String
+  actionType        String   // approve_post, reject_post, ban_user, suspend_user, resolve_report, approve_appeal, reject_appeal, verify_user
+  targetType        String   // post, user, report, appeal, verification
+  targetId          String
+  responseTime      Int?     // Response time in seconds
+  resolutionTime    Int?     // Resolution time in seconds
+  overturned        Boolean  @default(false)
+  overturnedBy      String?
+  overturnedAt      DateTime?
+  details           Json?
+  createdAt         DateTime @default(now())
+
+  moderator Moderator @relation(fields: [moderatorId], references: [id], onDelete: Cascade)
+
+  @@index([moderatorId])
+  @@index([actionType])
+  @@index([createdAt])
+  @@index([overturned])
+}
+
+// Internal Ticket System
+model SupportTicket {
+  id                String   @id @default(cuid())
+  ticketNumber      String   @unique
+  userId            String?
+  userEmail         String
+  category          String   // verification_review, fraud_investigation, creator_dispute, payment_issue, technical_issue, legal_request, security_incident
+  priority          String   @default("normal") // low, normal, high, urgent
+  status            String   @default("open") // open, in_progress, pending_info, resolved, closed
+  subject           String
+  description       String   @db.Text
+  assignedTo        String?
+  assignedToName    String?
+  resolvedBy        String?
+  resolvedAt        DateTime?
+  resolution        String?  @db.Text
+  closedBy          String?
+  closedAt          DateTime?
+  closedReason      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  ticketUser   User? @relation("TicketUser", fields: [userId], references: [id])
+  assignee User? @relation("TicketAssignee", fields: [assignedTo], references: [id])
+  messages TicketMessage[]
+
+  @@index([ticketNumber])
+  @@index([userId])
+  @@index([category])
+  @@index([priority])
+  @@index([status])
+  @@index([assignedTo])
+  @@index([createdAt])
+}
+
+model TicketMessage {
+  id                String   @id @default(cuid())
+  ticketId          String
+  authorId          String
+  authorName        String
+  authorRole        String   // admin, moderator, user
+  message           String   @db.Text
+  isInternal        Boolean  @default(false) // Internal admin note (not visible to user)
+  attachments       Json?    // Array of attachment URLs
+  createdAt         DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User         @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model TicketAnalytics {
+  id                String   @id @default(cuid())
+  date              DateTime @unique
+  ticketsCreated    Int      @default(0)
+  ticketsResolved   Int      @default(0)
+  ticketsOpen       Int      @default(0)
+  averageResolutionHours Float?
+  byCategory        Json?    // Breakdown by category
+  byPriority        Json?    // Breakdown by priority
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([date])
+}
+
+// Fraud Detection Center - Part 1
+model FraudAlert {
+  id              String   @id @default(cuid())
+  userId          String
+  alertType       String   // duplicate_account, multiple_accounts, suspicious_device
+  severity        String   @default("medium") // low, medium, high, critical
+  score           Int      @default(0) // 0-100 risk score
+  details         Json     // Evidence details (accounts, devices, IPs)
+  status          String   @default("pending") // pending, investigated, resolved, false_positive
+  investigatedBy  String?
+  investigatedAt  DateTime?
+  resolution      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user   User @relation("FraudAlertUser", fields: [userId], references: [id], onDelete: Cascade)
+  investigator User? @relation("FraudAlertInvestigator", fields: [investigatedBy], references: [id])
+
+  @@index([userId])
+  @@index([alertType])
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Revenue Fraud Protection
+model RevenueFraudAlert {
+  id              String   @id @default(cuid())
+  userId          String
+  alertType       String   // abnormal_earnings, suspicious_withdrawal, revenue_manipulation, fake_streaming, click_fraud
+  severity        String   @default("medium") // low, medium, high, critical
+  amount          Float?   // Suspicious amount
+  percentage      Float?   // Percentage increase/decrease
+  details         Json     // Evidence details
+  status          String   @default("pending") // pending, investigated, resolved, false_positive
+  investigatedBy  String?
+  investigatedAt  DateTime?
+  resolution      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user   User @relation("RevenueFraudUser", fields: [userId], references: [id], onDelete: Cascade)
+  investigator User? @relation("RevenueFraudInvestigator", fields: [investigatedBy], references: [id])
+
+  @@index([userId])
+  @@index([alertType])
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model StreamingFraudLog {
+  id              String   @id @default(cuid())
+  contentId       String
+  userId          String
+  contentType     String   // post, video, song
+  ipAddress       String?
+  userAgent       String?
+  isSuspicious    Boolean  @default(false)
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  user User @relation("StreamingFraudLogUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([userId])
+  @@index([isSuspicious])
+  @@index([createdAt])
+}
+
+model WithdrawalFraudLog {
+  id              String   @id @default(cuid())
+  withdrawalId    String
+  userId          String
+  amount          Float
+  previousAmount  Float?
+  withdrawalCount Int      // Number of withdrawals in period
+  timeWindow      String   // hour, day, week
+  isSuspicious    Boolean  @default(false)
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  user User @relation("WithdrawalFraudLogUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([withdrawalId])
+  @@index([userId])
+  @@index([isSuspicious])
+  @@index([createdAt])
+}
+
+// Feature Flag Center - Part 2 (with targeting)
+model FeatureFlag {
+  id                 String   @id @default(cuid())
+  key                String   @unique
+  name               String
+  description        String?
+  enabled            Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  
+  // Targeting fields
+  targetUsers        Json?    // Array of user IDs or emails to target
+  targetRoles        Json?    // Array of roles (admin, creator, vibe, moderator)
+  targetPercentage   Int?     // Percentage of users to enable for (0-100)
+  
+  // Beta access
+  betaAccessCode     String?  // Optional access code for beta testers
+  betaAccessEnabled  Boolean  @default(false)
+  
+  // Feature request tracking
+  requestedBy        String?  // Admin who requested the feature
+  approvedBy         String?  // Admin who approved the feature
+  approvedAt         DateTime?
+  
+  // Metadata
+  createdBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([key])
+  @@index([enabled])
+  @@index([isActive])
+  @@index([targetPercentage])
+}
+
+model UserFeatureAccess {
+  id              String   @id @default(cuid())
+  userId          String
+  featureKey      String
+  accessGranted   Boolean  @default(true)
+  grantedBy       String?
+  grantedAt       DateTime @default(now())
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  revokedBy       String?
+  accessCode      String?  // Beta access code used
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, featureKey])
+  @@index([userId])
+  @@index([featureKey])
+  @@index([accessGranted])
+}
+
+model AIModerationSettings {
+  id                    String   @id @default(cuid())
+  
+  // Detection toggles and actions
+  spamEnabled           String   @default("auto") // off, flag, auto
+  adultEnabled          String   @default("flag") // off, flag, auto
+  violenceEnabled       String   @default("flag") // off, flag, auto
+  hateSpeechEnabled     String   @default("flag") // off, flag, auto
+  
+  // Confidence thresholds (0-100)
+  spamThreshold         Int      @default(70)
+  adultThreshold        Int      @default(80)
+  violenceThreshold     Int      @default(85)
+  hateSpeechThreshold   Int      @default(85)
+  
+  // Human review settings
+  humanReviewThreshold  Int      @default(50)
+  requireHumanReview    Boolean  @default(true)
+  
+  // Keywords and rules
+  spamKeywords          Json?    // Custom spam keywords array
+  customRules           Json?    // Custom moderation rules
+  
+  // Metadata
+  updatedBy             String?
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+}
+
+model AIModerationLog {
+  id                String   @id @default(cuid())
+  contentId         String
+  contentType       String   // post, comment, message
+  userId            String
+  detectedType      String   // spam, adult, violence, hate_speech, safe
+  confidence        Int      // 0-100 confidence score
+  action            String   // allowed, flagged, blocked, hidden
+  actionTaken       String?  // auto, flag, none
+  reviewedByHuman   Boolean  @default(false)
+  humanReviewerId   String?
+  humanDecision     String?  // override: allow, block, hide
+  humanNote         String?
+  createdAt         DateTime @default(now())
+
+  // Additional fields for FUTURE 7B
+  contentSnippet    String?  @db.Text  // Preview of moderated content
+  reviewNotes       String?  @db.Text  // Admin notes during review
+  reviewTime        Int?               // Time to review in seconds
+  ruleMatched       String?            // Which rule triggered the moderation
+  source            String   @default("ai")  // ai, human, hybrid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([userId])
+  @@index([detectedType])
+  @@index([action])
+  @@index([createdAt])
+  @@index([reviewedByHuman])
+  @@index([reviewTime])
+  @@index([source])
+}
+
+// Media Operations Center - Track media processing jobs
+model MediaJob {
+  id              String   @id @default(cuid())
+  mediaId         String   // Post ID or media asset ID
+  mediaType       String   // video, audio, image
+  jobType         String   // upload, transcode, thumbnail, normalize, waveform
+  status          String   @default("pending") // pending, processing, completed, failed, retrying
+  progress        Int      @default(0) // 0-100
+  errorMessage    String?  @db.Text
+  errorCode       String?
+  retryCount      Int      @default(0)
+  maxRetries      Int      @default(3)
+  fileSize        Int?     // File size in bytes
+  fileUrl         String?  // Original file URL
+  outputUrl       String?  // Processed output URL
+  metadata        Json?    // Additional metadata (duration, resolution, etc.)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Additional fields for FUTURE 8B
+  storageProvider  String?  @default("r2") // r2, s3, local
+  storagePath      String?  // Path in storage
+  retriedFromId    String?  // Original job ID if this is a retry
+  retryScheduledAt DateTime?
+  lastRetryAt      DateTime?
+
+  @@index([status])
+  @@index([mediaType])
+  @@index([jobType])
+  @@index([mediaId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([storageProvider])
+  @@index([retriedFromId])
+  @@index([retryScheduledAt])
+}
+
+// Global Search Tracking
+model SearchLog {
+  id          String   @id @default(cuid())
+  query       String
+  userId      String
+  resultCount Int      @default(0)
+  entityType  String?  // users, content, reports, tickets, payments, verifications, all
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([query])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entityType])
+}
+
+// Data Retention Policies
+model RetentionPolicy {
+  id              String   @id @default(cuid())
+  dataType        String   @unique  // audit_logs, notifications, sessions, search_logs, deleted_users, payment_logs, moderation_logs
+  retentionDays   Int      @default(90)  // Days to keep data
+  enabled         Boolean  @default(true)
+  autoDelete      Boolean  @default(true)
+  lastRunAt       DateTime?
+  lastRunStatus   String?  // success, failed, running
+  lastRunCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dataType])
+  @@index([enabled])
+  @@index([lastRunAt])
+}
+
+model RetentionJobLog {
+  id              String   @id @default(cuid())
+  dataType        String
+  recordsDeleted  Int      @default(0)
+  status          String   // success, failed, partial
+  errorMessage    String?
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([dataType])
+  @@index([createdAt])
+  @@index([status])
+}
+
+// Analytics - Retention, Churn, Conversion
+model RetentionAnalytics {
+  id              String   @id @default(cuid())
+  date            DateTime @unique
+  cohortMonth     String   // YYYY-MM
+  newUsers        Int      @default(0)
+  retainedDay1    Int      @default(0)   // Users who came back after 1 day
+  retainedDay7    Int      @default(0)   // Users who came back after 7 days
+  retainedDay30   Int      @default(0)   // Users who came back after 30 days
+  retainedDay90   Int      @default(0)   // Users who came back after 90 days
+  retentionRate1  Float    @default(0)   // Percentage
+  retentionRate7  Float    @default(0)
+  retentionRate30 Float    @default(0)
+  retentionRate90 Float    @default(0)
+  churnedUsers    Int      @default(0)   // Users who left this month
+  churnRate       Float    @default(0)   // Percentage
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@index([cohortMonth])
+}
+
+model ConversionAnalytics {
+  id              String   @id @default(cuid())
+  date            DateTime @unique
+  // Vibe to Creator conversion
+  vibeToCreator    Int     @default(0)   // Number of users who upgraded from vibe to creator
+  vibeToCreatorRate Float  @default(0)   // Percentage of vibes who became creators
+  // Free to Paid conversion
+  freeToPaid       Int     @default(0)   // Number of users who subscribed to paid tier
+  freeToPaidRate   Float   @default(0)   // Conversion percentage
+  // Verification conversion
+  pendingToVerified Int    @default(0)   // Users who completed verification
+  verificationRate  Float  @default(0)   // Percentage
+  // Platform conversion metrics
+  totalVibes       Int     @default(0)
+  totalCreators    Int     @default(0)
+  totalPaid        Int     @default(0)
+  totalVerified    Int     @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([date])
+}
+
+model DeviceFingerprint {
+  id              String   @id @default(cuid())
+  fingerprint     String   @unique
+  userAgent       String?
+  ipAddress       String?
+  userIds         Json     @default("[]") // Array of user IDs linked to this device
+  riskScore       Int      @default(0)
+  flagged         Boolean  @default(false)
+  firstSeen       DateTime @default(now())
+  lastSeen        DateTime @default(now())
+  seenCount       Int      @default(1)
+
+  @@index([fingerprint])
+  @@index([riskScore])
+  @@index([flagged])
+  @@index([lastSeen])
 }
 
 // Payment failure tracking for subscriptions
@@ -432,6 +1193,17 @@ model AuditLog {
   details    Json?
   ipAddress  String?
   createdAt  DateTime @default(now())
+  
+  // Immutable log fields
+  isImmutable  Boolean  @default(true)  // Cannot be deleted/modified
+  hash         String?  // SHA-256 hash for integrity verification
+  previousHash String?  // For audit trail chain
+
+  @@index([adminId])
+  @@index([action])
+  @@index([targetType])
+  @@index([createdAt])
+  @@index([isImmutable])
 }
 
 model SystemHealth {
@@ -707,17 +1479,39 @@ model Violation {
 }
 
 model Appeal {
-  id         String    @id @default(uuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id])
-  targetType String    // post, comment, account
-  targetId   String
-  reason     String
-  status     String    @default("pending") // pending, approved, rejected
-  reviewedBy String?
-  reviewedAt DateTime?
-  adminNote  String?
-  createdAt  DateTime  @default(now())
+  id                String   @id @default(cuid())
+  userId            String
+  targetType        String   // ban, verification, content, comment
+  targetId          String?
+  reason            String   @db.Text
+  status            String   @default("pending") // pending, approved, rejected, escalated, info_requested
+  adminResponse     String?  @db.Text
+  adminId           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // NEW FIELDS for escalation
+  escalatedAt       DateTime?
+  escalatedTo       String?   // super_admin, legal_team
+  escalatedBy       String?
+  escalationReason  String?   @db.Text
+  
+  // NEW FIELDS for requesting info
+  infoRequestedAt   DateTime?
+  infoRequestedBy   String?
+  infoRequestedMessage String? @db.Text
+  infoSubmittedAt   DateTime?
+  infoSubmitted     String?   @db.Text
+  
+  // NEW FIELD for history tracking
+  history           Json?     // Stores timeline of all actions
+
+  user   User @relation("AppealUser", fields: [userId], references: [id], onDelete: Cascade)
+  admin  User? @relation("AppealAdmin", fields: [adminId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model ShadowBan {

@@ -8,6 +8,7 @@ import {
   getPredictiveBanRecommendations,
 } from '../services/anomalyDetection.js';
 import { logAudit } from '../utils/logger.js';
+import { exportAuditLogs, verifyLogIntegrity, getAuditStats } from '../services/auditExportService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -1223,6 +1224,70 @@ router.put('/posts/:id/age-restriction', requirePermission('posts:update'), asyn
   });
 
   res.json({ success: true, message: `Age restriction ${isAgeRestricted ? 'enabled' : 'disabled'} for post` });
+});
+
+// ============ AUDIT LOG EXPORT (FUTURE 10A) ============
+
+// GET /api/admin/audit-logs/export - Export audit logs as CSV
+router.get('/audit-logs/export', requirePermission('audit:read'), async (req, res) => {
+  try {
+    const { startDate, endDate, adminId, action, targetType, format = 'csv' } = req.query;
+    
+    const filters = { startDate, endDate, adminId, action, targetType };
+    const csv = await exportAuditLogs(filters, format);
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Export audit logs error:', error);
+    res.status(500).json({ success: false, message: 'Failed to export audit logs' });
+  }
+});
+
+// GET /api/admin/audit-logs/verify/:id - Verify log integrity
+router.get('/audit-logs/verify/:id', requirePermission('audit:read'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await verifyLogIntegrity(id);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Verify log error:', error);
+    res.status(500).json({ success: false, message: 'Failed to verify log' });
+  }
+});
+
+// GET /api/admin/audit-logs/stats - Get audit log statistics
+router.get('/audit-logs/stats', requirePermission('audit:read'), async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const stats = await getAuditStats(parseInt(days));
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Get audit stats error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch audit stats' });
+  }
+});
+
+// DELETE /api/admin/audit-logs/cleanup - Clean old logs (super admin only)
+router.delete('/audit-logs/cleanup', requirePermission('audit:manage'), async (req, res) => {
+  try {
+    const { olderThanDays = 90 } = req.query;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - parseInt(olderThanDays));
+    
+    const result = await prisma.auditLog.deleteMany({
+      where: {
+        createdAt: { lt: cutoffDate },
+        isImmutable: false
+      }
+    });
+    
+    res.json({ success: true, deleted: result.count, cutoffDays: olderThanDays });
+  } catch (error) {
+    console.error('Cleanup audit logs error:', error);
+    res.status(500).json({ success: false, message: 'Failed to cleanup audit logs' });
+  }
 });
 
 export default router;

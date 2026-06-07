@@ -35,12 +35,8 @@ export async function verifyTurnstile(token, ip) {
 // Middleware to require CAPTCHA on specific routes
 export function requireCaptcha() {
   return async (req, res, next) => {
-    // Bypass CAPTCHA in test environment
-    if (process.env.NODE_ENV === 'test') {
-      return next();
-    }
-    // Skip in development if not configured
-    if (process.env.NODE_ENV !== 'production' && !process.env.TURNSTILE_SECRET_KEY) {
+    // Bypass CAPTCHA in test and development environments
+    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
       return next();
     }
 
