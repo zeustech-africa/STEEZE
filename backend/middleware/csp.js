@@ -20,6 +20,7 @@ export function cspMiddleware(req, res, next) {
       'https://api.stripe.com',
       'https://sentry.io',
       'wss://*.steeze.com',
+      'https://api.zeustechafrica.com'
     ],
     'frame-src': [
       "'self'",
