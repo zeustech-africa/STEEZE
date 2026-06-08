@@ -101,3 +101,4 @@ module.exports = withSentryConfig(configWithPWA, {
   silent: true,
   widenClientFileUpload: true,
 });
+// build timestamp: Mon Jun  8 09:09:10 SAST 2026
