@@ -30,6 +30,22 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
 
+// TEMPORARY DEBUG - Remove after fixing Turnstile
+app.get('/api/auth/debug-secret', (req, res) => {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) {
+    return res.json({ error: 'TURNSTILE_SECRET_KEY not set' });
+  }
+  res.json({
+    length: secret.length,
+    first10: secret.substring(0, 10),
+    last10: secret.slice(-10),
+    startsWith0x: secret.startsWith('0x4AAAAA'),
+    hasNoSpaces: !secret.includes(' '),
+    hasNoLineBreaks: !secret.includes('\n') && !secret.includes('\r')
+  });
+});
+
 // Content Security Policy
 import { cspMiddleware } from './middleware/csp.js';
 app.use(cspMiddleware);
