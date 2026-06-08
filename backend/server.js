@@ -72,7 +72,6 @@ app.get('/api/admin/diagnostic-check-user', async (req, res) => {
         id: true, 
         email: true, 
         role: true,
-        isActive: true,
         createdAt: true
       }
     });
