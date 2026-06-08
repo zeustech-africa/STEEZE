@@ -30,15 +30,6 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
 
-// TEMPORARY DEBUG - Remove immediately after fixing
-app.get('/api/auth/debug-secret-full', (req, res) => {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-  res.json({
-    fullKey: secret,
-    length: secret ? secret.length : 0
-  });
-});
-
 // Content Security Policy
 import { cspMiddleware } from './middleware/csp.js';
 app.use(cspMiddleware);
@@ -46,78 +37,6 @@ app.use(cspMiddleware);
 // CDN CACHE HEADERS for static assets
 import { setCacheHeaders } from './middleware/cache.js';
 app.use('/uploads', setCacheHeaders, express.static(path.join(__dirname, 'uploads')));
-
-// TEMPORARY DIAGNOSTIC ENDPOINT - Remove after fixing admin login
-// Auditor Exception: STEEZE-AUDIT-EXCEPTION-002
-// Purpose: Verify admin user exists in production database
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
-app.get('/api/admin/diagnostic-check-user', async (req, res) => {
-  const allowedIps = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
-  if (process.env.NODE_ENV === 'production' && !allowedIps.includes(req.ip)) {
-    console.warn(`Unauthorized diagnostic access attempt from ${req.ip}`);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  
-  try {
-    // Check if prisma is available
-    if (!prisma) {
-      console.error('Prisma client not initialized');
-      return res.status(500).json({ error: 'Database client not available' });
-    }
-    
-    const user = await prisma.user.findUnique({
-      where: { email: 'admin@steeze.com' },
-      select: { 
-        id: true, 
-        email: true, 
-        role: true,
-        createdAt: true
-      }
-    });
-    
-    console.log(`[AUDIT] Admin user check from ${req.ip} - Exists: ${!!user}`);
-    res.json({ 
-      exists: !!user, 
-      user: user,
-      message: user ? 'Admin user found' : 'Admin user not found'
-    });
-  } catch (error) {
-    console.error('Diagnostic endpoint error:', error);
-    res.status(500).json({ error: 'Internal error', details: error.message });
-  }
-});
-
-// TEMPORARY DIAGNOSTIC ENDPOINT - Reset admin password
-// Auditor Exception: STEEZE-AUDIT-EXCEPTION-003
-app.post('/api/admin/diagnostic-reset-password', async (req, res) => {
-  const allowedIps = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
-  if (process.env.NODE_ENV === 'production' && !allowedIps.includes(req.ip)) {
-    console.warn(`Unauthorized password reset attempt from ${req.ip}`);
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  
-  try {
-    const bcrypt = await import('bcrypt');
-    const newPassword = 'Admin123456';
-    const passwordHash = await bcrypt.default.hash(newPassword, 10);
-    
-    const updatedUser = await prisma.user.update({
-      where: { email: 'admin@steeze.com' },
-      data: { passwordHash: passwordHash }
-    });
-    
-    console.log(`[AUDIT] Admin password reset from ${req.ip}`);
-    res.json({ 
-      success: true, 
-      message: 'Admin password has been reset',
-      email: updatedUser.email
-    });
-  } catch (error) {
-    console.error('Password reset error:', error);
-    res.status(500).json({ error: 'Internal error', details: error.message });
-  }
-});
 
 // --- ROUTES ---
 import adminRoutes from './routes/admin.js';
