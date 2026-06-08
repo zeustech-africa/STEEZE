@@ -18,7 +18,7 @@ export function middleware(request: NextRequest) {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      `connect-src 'self' https://steeze-backend.onrender.com${process.env.NODE_ENV === 'development' ? ' http://localhost:5000' : ''} https://api.paystack.co https://sentry.io`,
+      `connect-src 'self' https://steeze-backend.onrender.com${process.env.NODE_ENV === 'development' ? ' http://localhost:5000' : ''} https://api.paystack.co https://api.zeustechafrica.com https://sentry.io`,
       "frame-src 'self' https://challenges.cloudflare.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
