@@ -88,6 +88,37 @@ app.get('/api/admin/diagnostic-check-user', async (req, res) => {
   }
 });
 
+// TEMPORARY DIAGNOSTIC ENDPOINT - Reset admin password
+// Auditor Exception: STEEZE-AUDIT-EXCEPTION-003
+app.post('/api/admin/diagnostic-reset-password', async (req, res) => {
+  const allowedIps = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
+  if (process.env.NODE_ENV === 'production' && !allowedIps.includes(req.ip)) {
+    console.warn(`Unauthorized password reset attempt from ${req.ip}`);
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  
+  try {
+    const bcrypt = await import('bcrypt');
+    const newPassword = 'Admin123456';
+    const passwordHash = await bcrypt.default.hash(newPassword, 10);
+    
+    const updatedUser = await prisma.user.update({
+      where: { email: 'admin@steeze.com' },
+      data: { passwordHash: passwordHash }
+    });
+    
+    console.log(`[AUDIT] Admin password reset from ${req.ip}`);
+    res.json({ 
+      success: true, 
+      message: 'Admin password has been reset',
+      email: updatedUser.email
+    });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Internal error', details: error.message });
+  }
+});
+
 // --- ROUTES ---
 import adminRoutes from './routes/admin.js';
 import adminUsersRoutes from './routes/admin/users.js';
