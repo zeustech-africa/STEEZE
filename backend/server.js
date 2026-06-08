@@ -51,39 +51,41 @@ app.use('/uploads', setCacheHeaders, express.static(path.join(__dirname, 'upload
 // Auditor Exception: STEEZE-AUDIT-EXCEPTION-002
 // Purpose: Verify admin user exists in production database
 import { PrismaClient } from '@prisma/client';
-const diagnosticPrisma = new PrismaClient();
+const prisma = new PrismaClient();
 app.get('/api/admin/diagnostic-check-user', async (req, res) => {
-  // Only allow from localhost or specific IP for security
   const allowedIps = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
-  if (!allowedIps.includes(req.ip) && process.env.NODE_ENV === 'production') {
-    // Log unauthorized access attempt
+  if (process.env.NODE_ENV === 'production' && !allowedIps.includes(req.ip)) {
     console.warn(`Unauthorized diagnostic access attempt from ${req.ip}`);
     return res.status(403).json({ error: 'Forbidden' });
   }
-
+  
   try {
-    const user = await diagnosticPrisma.user.findUnique({
+    // Check if prisma is available
+    if (!prisma) {
+      console.error('Prisma client not initialized');
+      return res.status(500).json({ error: 'Database client not available' });
+    }
+    
+    const user = await prisma.user.findUnique({
       where: { email: 'admin@steeze.com' },
-      select: {
-        id: true,
-        email: true,
+      select: { 
+        id: true, 
+        email: true, 
         role: true,
         isActive: true,
         createdAt: true
       }
     });
-
-    // Log the query for audit trail
-    console.log(`[AUDIT] Admin user check performed from ${req.ip} - User exists: ${!!user}`);
-
-    res.json({
-      exists: !!user,
+    
+    console.log(`[AUDIT] Admin user check from ${req.ip} - Exists: ${!!user}`);
+    res.json({ 
+      exists: !!user, 
       user: user,
       message: user ? 'Admin user found' : 'Admin user not found'
     });
   } catch (error) {
-    console.error('Diagnostic error:', error);
-    res.status(500).json({ error: 'Internal error' });
+    console.error('Diagnostic endpoint error:', error);
+    res.status(500).json({ error: 'Internal error', details: error.message });
   }
 });
 
