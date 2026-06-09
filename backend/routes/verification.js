@@ -115,9 +115,14 @@ router.post('/register-step1', uploadRegisterStep1.fields([{ name: 'idDocument',
     const idDocumentFile = files?.idDocument?.[0];
     const profilePicFile = files?.profilePic?.[0];
     
-    // Validate required fields
-    if (!userType || !email || !password || !fullName || !phoneNumber) {
+    // Validate required fields (phoneNumber is optional for VIBERS)
+    if (!userType || !email || !password || !fullName) {
       return res.status(400).json({ error: 'All required fields must be filled' });
+    }
+    
+    // Validate phone number format if provided
+    if (phoneNumber && !phoneNumber.match(/^\+?[0-9\s\-\(\)]{8,20}$/)) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
     }
     
     if (!idDocumentFile) {
