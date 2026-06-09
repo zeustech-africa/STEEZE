@@ -5,6 +5,10 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import { uploadIDDocument, uploadSelfie } from '../services/upload.js';
+import bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
+import { uploadFile } from '../services/storage.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
