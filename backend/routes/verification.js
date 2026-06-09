@@ -20,8 +20,9 @@ const uploadsDir = path.join(__dirname, '..', 'uploads');
 const idDocumentsDir = path.join(uploadsDir, 'id-documents');
 const selfiesDir = path.join(uploadsDir, 'selfies');
 
-// Ensure directories exist
-[idDocumentsDir, selfiesDir].forEach(dir => {
+// Ensure upload directories exist
+const uploadDirs = ['./uploads', './uploads/id-documents', './uploads/temp', './uploads/selfies'];
+uploadDirs.forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -65,41 +66,33 @@ const profilePicStorage = multer.diskStorage({
   }
 });
 
-const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir, { recursive: true });
-}
-
 // Combined upload for register-step1 (idDocument + profilePic)
 const uploadRegisterStep1 = multer({
   storage: multer.diskStorage({
     destination: (_req, file, cb) => {
       if (file.fieldname === 'profilePic') {
-        cb(null, tempDir);
+        cb(null, './uploads/temp');
       } else {
-        cb(null, idDocumentsDir);
+        cb(null, './uploads/id-documents');
       }
     },
     filename: (_req, file, cb) => {
       const unique = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+      const ext = path.extname(file.originalname);
       if (file.fieldname === 'profilePic') {
-        cb(null, `profile-${unique}${path.extname(file.originalname)}`);
+        cb(null, `profile-${unique}${ext}`);
       } else {
-        cb(null, `id-doc-${unique}${path.extname(file.originalname)}`);
+        cb(null, `id-doc-${unique}${ext}`);
       }
     }
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.fieldname === 'profilePic') {
-      const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-      if (allowed.includes(file.mimetype)) {
-        cb(null, true);
-      } else {
-        cb(new Error('Only JPG, PNG, and WEBP images are allowed for profile picture'));
-      }
-    } else {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPG, PNG, WEBP, and PDF are allowed.'));
     }
   }
 });
