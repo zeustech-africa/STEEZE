@@ -117,7 +117,7 @@ import webhooksRoutes from './routes/webhooks.js';
 import paymentRoutes from './routes/payment.js';
 import subscriptionPaystackRoutes from './routes/subscriptionPaystack.js';
 import paystackWebhookRoutes from './routes/paystackWebhook.js';
-
+import verificationRoutes from './routes/verification.js';
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/admin/users', authenticateToken, adminUsersRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
@@ -149,7 +149,7 @@ app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/subscription-paystack', subscriptionPaystackRoutes);
 app.use('/api/webhooks', paystackWebhookRoutes);
-
+app.use('/api/verification', verificationRoutes);
 // Health check
 
 // Public feature flag check (no auth required)
