@@ -13,6 +13,24 @@ import { uploadFile } from '../services/storage.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// TEMPORARY DEBUG - Check Prisma status
+router.get('/debug-prisma', async (req, res) => {
+  try {
+    const test = await prisma.$queryRaw`SELECT 1 as test`;
+    res.json({ 
+      prismaAvailable: true, 
+      test: test,
+      pendingUserModelExists: !!(await prisma.pendingUser.count().catch(() => false))
+    });
+  } catch (error) {
+    res.json({ 
+      prismaAvailable: false, 
+      error: error.message,
+      errorName: error.name
+    });
+  }
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
