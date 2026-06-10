@@ -597,6 +597,7 @@ router.post('/admin/approve/:userId', async (req, res) => {
           action: 'USER_APPROVED',
           entityType: 'USER',
           entityId: pendingUser.id,
+          targetType: 'USER',
           details: {
             userEmail: pendingUser.email,
             userFullName: pendingUser.fullName,
@@ -694,6 +695,7 @@ router.post('/admin/reject/:userId', async (req, res) => {
           action: 'USER_REJECTED',
           entityType: 'USER',
           entityId: pendingUser.id,
+          targetType: 'USER',
           details: {
             userEmail: pendingUser.email,
             userFullName: pendingUser.fullName,
