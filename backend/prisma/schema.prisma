@@ -146,7 +146,6 @@ model User {
   
   posts                Post[]
   adminActions         AuditLog[]
-  verificationMessages VerificationMessage[]
   distributionSettings DistributionSettings?
   receivedNotifications Notification[] @relation("notificationRecipient")
   sentNotifications     Notification[] @relation("notificationSender")
@@ -1170,19 +1169,6 @@ model DistributionQueue {
   pushedAt     DateTime?
 }
 
-model VerificationMessage {
-  id          String   @id @default(uuid())
-  creatorId   String
-  adminId     String?
-  message     String
-  fileUrl     String?
-  isFromAdmin Boolean  @default(false)
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
-  
-  creator     User     @relation(fields: [creatorId], references: [id])
-}
-
 model AuditLog {
   id         String   @id @default(uuid())
   adminId    String?
@@ -2191,4 +2177,72 @@ model Transaction {
   @@index([createdAt])
   @@index([status])
   @@index([type])
+}
+
+model PendingUser {
+  id                  String   @id @default(uuid())
+  userType            String
+  email               String   @unique
+  password            String
+  fullName            String
+  username            String?  @unique
+  phoneNumber         String?
+  artistName          String?
+  genre               String?
+  idDocumentUrl       String?
+  selfiePhotoUrl      String?
+  selfieCapturedAt    DateTime?
+  idDocumentMetadata  Json?
+  userData            Json?
+  status              String   @default("pending_admin_approval")
+  registeredAt        DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ApprovedUser {
+  id                      String   @id @default(uuid())
+  originalId              String   @unique
+  userType                String
+  email                   String   @unique
+  password                String
+  fullName                String
+  username                String?  @unique
+  phoneNumber             String?
+  artistName              String?
+  genre                   String?
+  idDocumentUrl           String?
+  selfiePhotoUrl          String?
+  userData                Json?
+  approvedBy              String
+  approvedAt              DateTime @default(now())
+  congratulatoryMessageSent String?
+}
+
+model RejectedUser {
+  id                    String   @id @default(uuid())
+  originalId            String   @unique
+  userType              String
+  email                 String   @unique
+  fullName              String
+  rejectionReason       String
+  rejectionCustomNote   String?
+  rejectionMessageSent  String?
+  rejectedBy            String
+  rejectedAt            DateTime @default(now())
+}
+
+model VerificationMessage {
+  id            String   @id @default(uuid())
+  userId        String
+  userType      String
+  userName      String
+  userEmail     String
+  message       String
+  fileUrl       String?
+  fileName      String?
+  isFromUser    Boolean  @default(true)
+  isRead        Boolean  @default(false)
+  isReadByUser  Boolean  @default(false)
+  createdAt     DateTime @default(now())
 }
