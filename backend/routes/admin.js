@@ -44,30 +44,78 @@ router.get('/dashboard', requirePermission('users:read'), async (req, res) => {
 
 // ============ USER MANAGEMENT ============
 router.get('/users', requirePermission('users:read'), async (req, res) => {
-  const { type, search, page = 1, limit = 20 } = req.query;
-  const where = {};
-  if (type && type !== 'all') where.userType = type;
-  if (search) {
-    where.OR = [
-      { email: { contains: search, mode: 'insensitive' } },
-      { username: { contains: search, mode: 'insensitive' } },
-      { artistName: { contains: search, mode: 'insensitive' } },
-    ];
-  }
+  try {
+    const { type, search, page = 1, limit = 50 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
+    // Build search filter
+    const searchFilter = search ? {
+      OR: [
+        { email: { contains: search, mode: 'insensitive' } },
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { username: { contains: search, mode: 'insensitive' } },
+      ],
+    } : {};
+
+    // Get approved users (from verification system)
+    const approvedUsers = await prisma.approvedUser.findMany({
+      where: searchFilter,
+      orderBy: { approvedAt: 'desc' },
       skip,
       take: parseInt(limit),
-      orderBy: { createdAt: 'desc' },
-      include: { shadowBan: true },
-    }),
-    prisma.user.count({ where }),
-  ]);
+    });
 
-  res.json({ success: true, users, total, page: parseInt(page), limit: parseInt(limit) });
+    // Get regular users (direct signups)
+    const regularUsers = await prisma.user.findMany({
+      where: searchFilter,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: parseInt(limit),
+      include: { shadowBan: true },
+    });
+
+    // Get counts
+    const approvedCount = await prisma.approvedUser.count({ where: searchFilter });
+    const regularCount = await prisma.user.count({ where: searchFilter });
+
+    // Combine and transform for frontend
+    const users = [
+      ...approvedUsers.map(u => ({
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName,
+        username: u.username,
+        userType: u.userType,
+        status: 'approved',
+        approvedBy: u.approvedBy,
+        approvedAt: u.approvedAt,
+        createdAt: u.approvedAt,
+        source: 'verification',
+      })),
+      ...regularUsers.map(u => ({
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName,
+        username: u.username,
+        userType: u.userType,
+        status: u.isBanned ? 'banned' : (u.isSuspended ? 'suspended' : 'active'),
+        createdAt: u.createdAt,
+        source: 'direct',
+        shadowBan: u.shadowBan,
+      })),
+    ];
+
+    res.json({
+      success: true,
+      users,
+      total: approvedCount + regularCount,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
 });
 
 router.post('/users/:id/ban', requirePermission('users:update'), async (req, res) => {
