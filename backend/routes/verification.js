@@ -569,20 +569,29 @@ router.post('/admin/approve/:userId', async (req, res) => {
     });
     
     // Create audit log for the approval action
+    console.log('[AUDIT DEBUG] === STARTING AUDIT LOG CREATION ===');
+    console.log('[AUDIT DEBUG] Admin email:', adminEmail);
+    console.log('[AUDIT DEBUG] Pending user ID:', pendingUser.id);
+    console.log('[AUDIT DEBUG] Pending user email:', pendingUser.email);
+    console.log('[AUDIT DEBUG] req.user:', req.user ? 'exists' : 'null');
     try {
-      // Get the admin user's ID (from the request if available, or use a default)
       let adminId = null;
       if (req.user && req.user.id) {
         adminId = req.user.id;
+        console.log('[AUDIT DEBUG] Admin ID from req.user:', adminId);
       } else {
-        // Fallback: find admin by email
-        const adminUser = await prisma.adminUser.findFirst({
+        const adminUser = await prisma.user.findFirst({
           where: { email: adminEmail || 'admin@steeze.com' }
         });
-        if (adminUser) adminId = adminUser.id;
+        if (adminUser) {
+          adminId = adminUser.id;
+          console.log('[AUDIT DEBUG] Admin ID found via email:', adminId);
+        } else {
+          console.log('[AUDIT DEBUG] Admin user NOT found!');
+        }
       }
       
-      await prisma.auditLog.create({
+      const auditLog = await prisma.auditLog.create({
         data: {
           userId: adminId,
           action: 'USER_APPROVED',
@@ -596,13 +605,13 @@ router.post('/admin/approve/:userId', async (req, res) => {
             timestamp: new Date().toISOString()
           },
           severity: 'INFO',
-          ipAddress: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1'
+          ipAddress: req.ip || '127.0.0.1'
         }
       });
-      console.log(`[AUDIT] User approved: ${pendingUser.email} by ${adminEmail || 'admin'}`);
+      console.log('[AUDIT DEBUG] Audit log created! ID:', auditLog.id);
     } catch (auditError) {
-      console.error('Failed to create audit log:', auditError);
-      // Don't fail the approval if audit logging fails
+      console.error('[AUDIT DEBUG] ERROR:', auditError.message);
+      console.error('[AUDIT DEBUG] Stack:', auditError.stack);
     }
     
     await prisma.pendingUser.delete({
