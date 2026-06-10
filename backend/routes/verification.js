@@ -865,4 +865,27 @@ router.get('/admin/rejected-users', async (req, res) => {
   }
 });
 
+// DEBUG: Check audit logs
+router.get('/debug/audit-logs', async (req, res) => {
+  try {
+    const logs = await prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    res.json({
+      success: true,
+      count: logs.length,
+      logs: logs.map(l => ({
+        action: l.action,
+        entityType: l.entityType,
+        entityId: l.entityId,
+        details: l.details,
+        createdAt: l.createdAt
+      }))
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 export default router;
