@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🔧 Admin user seed script starting...');
   
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@steeze.com';
+  const adminEmail = process.env.ADMIN_EMAIL || 'ceo@zeustechafrica.com';
   const adminPassword = process.env.ADMIN_PASSWORD;
   const adminUsername = process.env.ADMIN_USERNAME || 'super_admin';
   

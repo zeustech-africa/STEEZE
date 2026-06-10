@@ -53,7 +53,7 @@ app.post('/api/admin/diagnostic-create-audit-log', async (req, res) => {
   try {
     // Find the admin user
     const adminUser = await prisma.user.findUnique({
-      where: { email: 'admin@steeze.com' }
+      where: { email: 'ceo@zeustechafrica.com' }
     });
     
     if (!adminUser) {

@@ -550,7 +550,7 @@ router.post('/admin/approve/:userId', async (req, res) => {
         genre: pendingUser.genre,
         idDocumentUrl: pendingUser.idDocumentUrl,
         selfiePhotoUrl: pendingUser.selfiePhotoUrl,
-        approvedBy: adminEmail || 'admin@steeze.com',
+        approvedBy: adminEmail || 'ceo@zeustechafrica.com',
         congratulatoryMessageSent: congratulatoryMessage,
         userData: pendingUser.userData
       }
@@ -581,7 +581,7 @@ router.post('/admin/approve/:userId', async (req, res) => {
         console.log('[AUDIT DEBUG] Admin ID from req.user:', adminId);
       } else {
         const adminUser = await prisma.user.findFirst({
-          where: { email: adminEmail || 'admin@steeze.com' }
+          where: { email: adminEmail || 'ceo@zeustechafrica.com' }
         });
         if (adminUser) {
           adminId = adminUser.id;
@@ -602,7 +602,7 @@ router.post('/admin/approve/:userId', async (req, res) => {
             userEmail: pendingUser.email,
             userFullName: pendingUser.fullName,
             userType: pendingUser.userType,
-            approvedBy: adminEmail || 'admin@steeze.com',
+            approvedBy: adminEmail || 'ceo@zeustechafrica.com',
             timestamp: new Date().toISOString()
           },
           severity: 'INFO',
@@ -666,7 +666,7 @@ router.post('/admin/reject/:userId', async (req, res) => {
         rejectionReason: rejectionReason,
         rejectionCustomNote: rejectionCustomNote || null,
         rejectionMessageSent: rejectionMessage,
-        rejectedBy: adminEmail || 'admin@steeze.com'
+        rejectedBy: adminEmail || 'ceo@zeustechafrica.com'
       }
     });
     
@@ -702,7 +702,7 @@ router.post('/admin/reject/:userId', async (req, res) => {
             userType: pendingUser.userType,
             rejectionReason: rejectionReason,
             rejectionCustomNote: rejectionCustomNote || null,
-            rejectedBy: adminEmail || 'admin@steeze.com',
+            rejectedBy: adminEmail || 'ceo@zeustechafrica.com',
             timestamp: new Date().toISOString()
           },
           severity: 'WARNING',
