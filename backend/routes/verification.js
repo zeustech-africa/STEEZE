@@ -53,6 +53,29 @@ router.get('/debug/prisma-models', async (req, res) => {
   }
 });
 
+// DEBUG: Check approved users
+router.get('/debug/approved-users', async (req, res) => {
+  try {
+    const users = await prisma.approvedUser.findMany({
+      orderBy: { approvedAt: 'desc' },
+      take: 10
+    });
+    res.json({
+      count: users.length,
+      users: users.map(u => ({
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName,
+        userType: u.userType,
+        approvedBy: u.approvedBy,
+        approvedAt: u.approvedAt
+      }))
+    });
+  } catch (error) {
+    res.json({ error: error.message, stack: error.stack });
+  }
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
