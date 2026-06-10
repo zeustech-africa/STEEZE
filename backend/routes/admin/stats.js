@@ -31,12 +31,12 @@ async function updateTodayStats() {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   
-  // Get today's registrations
-  const todayRegistrations = await prisma.user.count({
-    where: {
-      createdAt: { gte: today, lt: tomorrow }
-    }
-  });
+  // Get today's registrations from both tables
+  const [todayRegular, todayApproved] = await Promise.all([
+    prisma.user.count({ where: { createdAt: { gte: today, lt: tomorrow } } }),
+    prisma.approvedUser.count({ where: { approvedAt: { gte: today, lt: tomorrow } } })
+  ]);
+  const todayRegistrations = todayRegular + todayApproved;
   
   // Get today's uploads
   const todayUploads = await prisma.post.count({
@@ -54,8 +54,12 @@ async function updateTodayStats() {
     _sum: { amount: true }
   });
   
-  // Get total registrations
-  const totalRegistrations = await prisma.user.count();
+  // Get total registrations from both tables
+  const [regularUsers, approvedUsers] = await Promise.all([
+    prisma.user.count(),
+    prisma.approvedUser.count()
+  ]);
+  const totalRegistrations = regularUsers + approvedUsers;
   
   // Get total uploads
   const totalUploads = await prisma.post.count();
@@ -157,9 +161,12 @@ router.get('/summary', authenticateToken, requireAdmin, async (req, res) => {
     });
     
     // Get pending counts
-    const pendingVerifications = await prisma.user.count({
-      where: { verificationStatus: 'pending' }
-    });
+    // Get pending counts - from both user tables
+    const [pendingVerificationsRegular, pendingApprovedVerifications] = await Promise.all([
+      prisma.user.count({ where: { verificationStatus: 'pending' } }),
+      prisma.approvedUser.count() // All approved users have been verified
+    ]);
+    const pendingVerifications = pendingVerificationsRegular;
     
     const pendingPosts = await prisma.post.count({
       where: { adminStatus: 'pending' }
@@ -176,13 +183,40 @@ router.get('/summary', authenticateToken, requireAdmin, async (req, res) => {
       }
     });
     
+    // Get total users from both tables
+    const [regularUsersTotal, approvedUsersTotal] = await Promise.all([
+      prisma.user.count(),
+      prisma.approvedUser.count()
+    ]);
+    const totalUsers = regularUsersTotal + approvedUsersTotal;
+    
+    // Get today's registrations from both tables
+    const [todayRegularCount, todayApprovedCount] = await Promise.all([
+      prisma.user.count({ where: { createdAt: { gte: today } } }),
+      prisma.approvedUser.count({ where: { approvedAt: { gte: today } } })
+    ]);
+    const totalRegistrationsToday = todayRegularCount + todayApprovedCount;
+    
+    // Get creator/vibe counts from both tables
+    const [regularCreators, approvedCreators] = await Promise.all([
+      prisma.user.count({ where: { userType: { in: ['zls_artist', 'independent_creator'] } } }),
+      prisma.approvedUser.count({ where: { userType: { in: ['zls_artist', 'independent_creator'] } } })
+    ]);
+    const totalCreators = regularCreators + approvedCreators;
+    
+    const [regularVibes, approvedVibes] = await Promise.all([
+      prisma.user.count({ where: { userType: 'vibe' } }),
+      prisma.approvedUser.count({ where: { userType: 'vibe' } })
+    ]);
+    const totalVibes = regularVibes + approvedVibes;
+    
     res.json({
       success: true,
       summary: {
-        totalUsers: todayStats?.totalRegistrations || 0,
-        totalCreators: await prisma.user.count({ where: { userType: { in: ['zls_artist', 'independent_creator'] } } }),
-        totalVibes: await prisma.user.count({ where: { userType: 'vibe' } }),
-        dailyRegistrations: todayStats?.newRegistrations || 0,
+        totalUsers,
+        totalCreators,
+        totalVibes,
+        dailyRegistrations: totalRegistrationsToday,
         dailyUploads: todayStats?.newUploads || 0,
         dailyRevenue: todayStats?.newRevenue || 0,
         pendingVerifications,
