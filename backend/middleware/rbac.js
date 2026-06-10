@@ -62,6 +62,11 @@ export function requirePermission(permission) {
       });
       
       if (!admin) {
+        // Fallback: check if user has userType 'admin' on the main User table
+        if (req.user.userType === 'admin' || req.user.role === 'admin') {
+          // Grant full admin permissions (same as super_admin '*' level)
+          return next();
+        }
         return res.status(403).json({ success: false, message: 'Admin access required' });
       }
       
@@ -87,6 +92,10 @@ export function requireRole(role) {
       });
       
       if (!admin || admin.role !== role) {
+        // Fallback: check if user has userType 'admin' on the main User table
+        if (req.user.userType === 'admin' || req.user.role === 'admin') {
+          return next();
+        }
         return res.status(403).json({ success: false, message: `Role ${role} required` });
       }
       

@@ -85,7 +85,8 @@ export const authenticateToken = async (req, res, next) => {
 export const requireAdmin = (req, res, next) => {
   try {
     const userType = req.user?.userType;
-    if (!userType || userType !== 'admin') {
+    const role = req.user?.role;
+    if (!userType || (userType !== 'admin' && role !== 'admin')) {
       return res.status(403).json({ error: 'Insufficient permissions', success: false });
     }
     next();
@@ -104,8 +105,8 @@ export const requireRole = () => requireAdmin;
 // Check if user has any admin privilege
 export async function checkAdminAccess(userId) {
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { userType: true } });
-    return user?.userType === 'admin';
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { userType: true, role: true } });
+    return user?.userType === 'admin' || user?.role === 'admin';
   } catch {
     return false;
   }
