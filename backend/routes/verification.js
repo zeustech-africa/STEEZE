@@ -31,6 +31,28 @@ router.get('/debug-prisma', async (req, res) => {
   }
 });
 
+// AUDITOR DEBUG - List all Prisma models
+router.get('/debug/prisma-models', async (req, res) => {
+  try {
+    const prisma = new PrismaClient();
+    const models = Object.keys(prisma).sort();
+    res.json({
+      success: true,
+      totalModels: models.length,
+      models: models,
+      hasPendingUser: models.includes('pendingUser') || models.includes('PendingUser') || models.includes('pending_user'),
+      hasApprovedUser: models.includes('approvedUser') || models.includes('ApprovedUser') || models.includes('approved_user'),
+      hasRejectedUser: models.includes('rejectedUser') || models.includes('RejectedUser') || models.includes('rejected_user')
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
