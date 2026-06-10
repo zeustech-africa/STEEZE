@@ -568,6 +568,43 @@ router.post('/admin/approve/:userId', async (req, res) => {
       }
     });
     
+    // Create audit log for the approval action
+    try {
+      // Get the admin user's ID (from the request if available, or use a default)
+      let adminId = null;
+      if (req.user && req.user.id) {
+        adminId = req.user.id;
+      } else {
+        // Fallback: find admin by email
+        const adminUser = await prisma.adminUser.findFirst({
+          where: { email: adminEmail || 'admin@steeze.com' }
+        });
+        if (adminUser) adminId = adminUser.id;
+      }
+      
+      await prisma.auditLog.create({
+        data: {
+          userId: adminId,
+          action: 'USER_APPROVED',
+          entityType: 'USER',
+          entityId: pendingUser.id,
+          details: {
+            userEmail: pendingUser.email,
+            userFullName: pendingUser.fullName,
+            userType: pendingUser.userType,
+            approvedBy: adminEmail || 'admin@steeze.com',
+            timestamp: new Date().toISOString()
+          },
+          severity: 'INFO',
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1'
+        }
+      });
+      console.log(`[AUDIT] User approved: ${pendingUser.email} by ${adminEmail || 'admin'}`);
+    } catch (auditError) {
+      console.error('Failed to create audit log:', auditError);
+      // Don't fail the approval if audit logging fails
+    }
+    
     await prisma.pendingUser.delete({
       where: { id: userId }
     });
@@ -634,6 +671,37 @@ router.post('/admin/reject/:userId', async (req, res) => {
         isReadByUser: false
       }
     });
+    
+    // Create audit log for the rejection action
+    try {
+      let adminId = null;
+      if (req.user && req.user.id) {
+        adminId = req.user.id;
+      }
+      
+      await prisma.auditLog.create({
+        data: {
+          userId: adminId,
+          action: 'USER_REJECTED',
+          entityType: 'USER',
+          entityId: pendingUser.id,
+          details: {
+            userEmail: pendingUser.email,
+            userFullName: pendingUser.fullName,
+            userType: pendingUser.userType,
+            rejectionReason: rejectionReason,
+            rejectionCustomNote: rejectionCustomNote || null,
+            rejectedBy: adminEmail || 'admin@steeze.com',
+            timestamp: new Date().toISOString()
+          },
+          severity: 'WARNING',
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1'
+        }
+      });
+      console.log(`[AUDIT] User rejected: ${pendingUser.email} by ${adminEmail || 'admin'}`);
+    } catch (auditError) {
+      console.error('Failed to create audit log:', auditError);
+    }
     
     await prisma.pendingUser.delete({
       where: { id: userId }
