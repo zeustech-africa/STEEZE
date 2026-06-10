@@ -143,6 +143,10 @@ const uploadRegisterStep1 = multer({
 
 router.post('/register-step1', uploadRegisterStep1.fields([{ name: 'idDocument', maxCount: 1 }, { name: 'profilePic', maxCount: 1 }]), async (req, res) => {
   try {
+    console.log('=== REGISTER STEP 1 START ===');
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Files received:', req.files ? Object.keys(req.files) : 'No files');
+    
     const { 
       userType, email, password, fullName, username, phoneNumber, 
       artistName, genre, contractSigned, userData 
@@ -152,28 +156,37 @@ router.post('/register-step1', uploadRegisterStep1.fields([{ name: 'idDocument',
     const idDocumentFile = files?.idDocument?.[0];
     const profilePicFile = files?.profilePic?.[0];
     
-    // Validate required fields (phoneNumber is optional for VIBERS)
+    console.log('userType:', userType);
+    console.log('email:', email);
+    console.log('fullName:', fullName);
+    console.log('username:', username);
+    console.log('phoneNumber:', phoneNumber);
+    console.log('Has idDocumentFile:', !!idDocumentFile);
+    console.log('Has profilePicFile:', !!profilePicFile);
+    
+    // Validate required fields
     if (!userType || !email || !password || !fullName) {
+      console.log('Missing required fields:', { userType, email, password, fullName });
       return res.status(400).json({ error: 'All required fields must be filled' });
     }
     
-    // Validate phone number format if provided
-    if (phoneNumber && !phoneNumber.match(/^\+?[0-9\s\-\(\)]{8,20}$/)) {
-      return res.status(400).json({ error: 'Invalid phone number format' });
-    }
-    
     if (!idDocumentFile) {
+      console.log('ID document file missing');
       return res.status(400).json({ error: 'ID document is required' });
     }
     
-    // Check if user already exists in any table
+    // Check if user already exists
     const existingPending = await prisma.pendingUser.findUnique({ where: { email } });
     const existingApproved = await prisma.approvedUser.findUnique({ where: { email } });
+    
+    console.log('Existing pending:', existingPending ? 'Yes' : 'No');
+    console.log('Existing approved:', existingApproved ? 'Yes' : 'No');
     
     if (existingPending || existingApproved) {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
     
+    // Create user
     const userId = uuidv4();
     const hashedPassword = await bcrypt.hash(password, 10);
     
@@ -182,38 +195,12 @@ router.post('/register-step1', uploadRegisterStep1.fields([{ name: 'idDocument',
     if (userData && typeof userData === 'string') {
       try {
         parsedUserData = JSON.parse(userData);
+        console.log('Parsed userData:', Object.keys(parsedUserData));
       } catch (e) {
-        parsedUserData = {};
+        console.log('Failed to parse userData:', e.message);
       }
     }
     
-    // Process profile picture if provided
-    let profilePicUrl = null;
-    if (profilePicFile) {
-      try {
-        if (profilePicFile.size > 2 * 1024 * 1024) {
-          // Still continue, just note the file is too large
-          console.warn(`Profile picture too large for user ${userId}: ${profilePicFile.size} bytes`);
-        } else {
-          const imageBuffer = fs.readFileSync(profilePicFile.path);
-          const croppedBuffer = await sharp(imageBuffer)
-            .resize(400, 400, {
-              fit: 'cover',
-              position: 'centre'
-            })
-            .png()
-            .toBuffer();
-          const filename = `profiles/${userId}/avatar.png`;
-          profilePicUrl = await uploadFile(croppedBuffer, filename, 'image/png');
-        }
-        // Clean up temp file
-        fs.unlinkSync(profilePicFile.path);
-      } catch (picError) {
-        console.error('Profile picture processing error:', picError);
-        // Continue without profile picture
-      }
-    }
-
     // Create pending user
     const newUser = await prisma.pendingUser.create({
       data: {
@@ -223,30 +210,24 @@ router.post('/register-step1', uploadRegisterStep1.fields([{ name: 'idDocument',
         password: hashedPassword,
         fullName,
         username: username || null,
-        phoneNumber,
+        phoneNumber: phoneNumber || null,
         artistName: artistName || null,
         genre: genre || null,
-        contractSigned: contractSigned === 'true' || contractSigned === true,
         idDocumentUrl: `/uploads/id-documents/${idDocumentFile.filename}`,
-        profilePicUrl: profilePicUrl,
-        status: 'pending_selfie',
         userData: parsedUserData,
-        registeredAt: new Date()
+        status: 'pending_admin_approval'
       }
     });
     
-    console.log(`📝 Registration Step 1: ${fullName} (${email}) - Pending selfie`);
+    console.log('User created successfully with ID:', newUser.id);
     
-    res.status(201).json({
-      success: true,
-      message: 'ID uploaded successfully. Please take a selfie.',
-      userId: newUser.id,
-      nextStep: '/verification/selfie'
-    });
+    res.json({ userId: newUser.id, message: 'User registered successfully' });
     
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    console.error('=== REGISTER STEP 1 ERROR ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Registration failed' });
   }
 });
 
