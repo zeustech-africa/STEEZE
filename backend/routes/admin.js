@@ -16,10 +16,11 @@ const prisma = new PrismaClient();
 // ============ DASHBOARD ============
 router.get('/dashboard', requirePermission('users:read'), async (req, res) => {
   const [
-    totalUsers, totalCreators, totalVibes, totalZLS, totalIndependent,
+    regularUsers, approvedUsers, totalCreators, totalVibes, totalZLS, totalIndependent,
     pendingPosts, pendingVerifications, pendingReports, pendingPayouts, anomalyAlerts,
   ] = await Promise.all([
     prisma.user.count(),
+    prisma.approvedUser.count(),
     prisma.user.count({ where: { userType: { in: ['zls_artist', 'independent_creator'] } } }),
     prisma.user.count({ where: { userType: 'vibe' } }),
     prisma.user.count({ where: { userType: 'zls_artist' } }),
@@ -32,6 +33,8 @@ router.get('/dashboard', requirePermission('users:read'), async (req, res) => {
       where: { score: { gt: 70 }, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
     }),
   ]);
+
+  const totalUsers = regularUsers + approvedUsers;
 
   res.json({
     success: true,
