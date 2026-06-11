@@ -139,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 console.error("Logout error:", e);
               }
               localStorage.clear();
-              router.push("/login");
+              router.push("/admin/login");
             }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-white/70 hover:bg-white/10 hover:text-red-500 transition-all mt-4 text-sm"
           >

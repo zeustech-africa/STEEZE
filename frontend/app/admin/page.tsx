@@ -5,6 +5,7 @@ import {
   Users, UserCheck, FileText, AlertTriangle, DollarSign,
   Activity, Shield, Crown, TrendingUp, Clock, Server, Globe,
 } from "lucide-react";
+import Link from 'next/link';
 
 interface DashboardData {
   totalUsers: number;
@@ -145,15 +146,36 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-        {stats.map((stat) => (
-          <div key={stat.label} className="glass-card p-4 rounded-xl border border-white/10 hover:border-gold/30 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-              <stat.icon className={stat.color} size={24} />
-              <span className="text-2xl font-bold text-white">{stat.value}</span>
-            </div>
-            <p className="text-white/50 text-sm">{stat.label}</p>
-          </div>
-        ))}
+        {stats.map((stat) => {
+          // Define navigation paths for each card
+          const getLinkPath = (label: string) => {
+            const paths: Record<string, string> = {
+              "Total Users": "/admin/users",
+              "ZLS Artists": "/admin/users?role=zls_artist",
+              "Independent": "/admin/users?role=independent",
+              "VIBES": "/admin/users?role=vibes",
+              "Pending Posts": "/admin/posts/pending",
+              "Pending Verifications": "/admin/verification",
+              "Pending Reports": "/admin/reports/pending",
+              "Pending Payouts": "/admin/payouts/pending",
+              "Anomaly Alerts (24h)": "/admin/security/alerts",
+              "Total Creators": "/admin/users?role=creator",
+            };
+            return paths[stat.label] || "#";
+          };
+
+          return (
+            <Link key={stat.label} href={getLinkPath(stat.label)}>
+              <div className="glass-card p-4 rounded-xl border border-white/10 hover:border-gold/30 hover:bg-white/5 transition-all cursor-pointer">
+                <div className="flex items-center justify-between mb-2">
+                  <stat.icon className={stat.color} size={24} />
+                  <span className="text-2xl font-bold text-white">{stat.value}</span>
+                </div>
+                <p className="text-white/50 text-sm">{stat.label}</p>
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-6">
