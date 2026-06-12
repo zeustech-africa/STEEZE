@@ -89,6 +89,22 @@ app.post('/api/admin/diagnostic-create-audit-log', async (req, res) => {
   }
 });
 
+// TEMPORARY ONE-TIME ENDPOINT - Verify admin user (REMOVE AFTER USE)
+// Auditor Exception: STEEZE-AUDIT-EXCEPTION-005
+app.post('/api/temp/verify-admin', async (req, res) => {
+  try {
+    const admin = await prisma.user.update({
+      where: { email: 'admin@steeze.com' },
+      data: { isVerified: true }
+    });
+    console.log('Admin verified via temp endpoint:', admin.email);
+    res.json({ success: true, message: 'Admin verified', isVerified: admin.isVerified });
+  } catch (error) {
+    console.error('Error verifying admin:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- ROUTES ---
 import adminRoutes from './routes/admin.js';
 import adminUsersRoutes from './routes/admin/users.js';
