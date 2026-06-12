@@ -154,11 +154,11 @@ export default function AdminDashboard() {
               "ZLS Artists": "/admin/users?role=zls_artist",
               "Independent": "/admin/users?role=independent",
               "VIBES": "/admin/users?role=vibes",
-              "Pending Posts": "/admin/posts/pending",
+              "Pending Posts": "/admin/posts",
               "Pending Verifications": "/admin/verification",
-              "Pending Reports": "/admin/reports/pending",
-              "Pending Payouts": "/admin/payouts/pending",
-              "Anomaly Alerts (24h)": "/admin/security/alerts",
+              "Pending Reports": "/admin/reports",
+              "Pending Payouts": "/admin/payouts",
+              "Anomaly Alerts (24h)": "/admin/security",
               "Total Creators": "/admin/users?role=creator",
             };
             return paths[stat.label] || "#";
